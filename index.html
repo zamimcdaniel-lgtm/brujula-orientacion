@@ -546,6 +546,25 @@ a.cifra:hover { border-color: var(--teal); }
 
 @media print { .lateral, .barra-movil { display: none; } .app { display: block; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+/* ── Ingreso */
+body.sin-sesion .app, body.sin-sesion #velo { display: none; }
+body:not(.sin-sesion) #acceso { display: none; }
+#acceso { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px 16px; }
+.acceso-caja { width: 100%; max-width: 400px; background: var(--superficie); border: 1px solid var(--linea); border-radius: var(--radio); padding: 28px; box-shadow: var(--sombra); }
+.acceso-caja .marca { padding: 0 0 24px; }
+.acceso-caja h1 { font-size: 1.7rem; margin-bottom: 6px; }
+.acceso-caja .sub { color: var(--tinta-2); margin: 0 0 20px; font-size: .92rem; }
+.acceso-form { display: grid; gap: 14px; }
+.acceso-form .btn { width: 100%; margin-top: 2px; }
+.acceso-error { margin: 0; color: var(--n3); font-size: .86rem; }
+.acceso-error:empty { display: none; }
+.acceso-ok { background: var(--teal-suave); color: var(--teal); padding: 10px 12px; border-radius: var(--radio-chico); font-size: .88rem; margin: 0 0 16px; }
+.acceso-pie { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin: 20px 0 0; font-size: .88rem; color: var(--tinta-2); }
+.acceso-pie button { display: inline-flex; align-items: center; gap: 4px; background: none; border: 0; padding: 4px 0; color: var(--teal); cursor: pointer; font-weight: 600; }
+.acceso-pie .ic { width: 16px; height: 16px; }
+.acceso-nota { max-width: 400px; text-align: center; margin: 16px 0 0; }
+@media (max-width: 480px) { .acceso-caja { padding: 22px 18px; } }
 </style>
 </head>
 <body>
@@ -567,6 +586,9 @@ a.cifra:hover { border-color: var(--teal); }
   </div>
 </div>
 <div id="velo"></div>
+<section id="acceso" aria-label="Ingreso"><p class="nota">Cargando…</p></section>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script>
 "use strict";
 // ── datos-normas
@@ -1407,7 +1429,16 @@ const CRONOGRAMA = [
 ;
 // ── almacen
 // Almacenamiento local: registros en localStorage y fotos en IndexedDB.
-const CLAVE = 'brujula-orientacion.v1';
+let CLAVE = 'brujula-orientacion.v1';
+let FOTOS_DB = 'brujula-fotos';
+
+// Cada cuenta guarda aparte en el mismo navegador. La primera cuenta que entra conserva los datos que ya había.
+function usarCuenta(id) {
+  const DUENO = 'brujula-orientacion.dueno';
+  let dueno = id;
+  try { dueno = localStorage.getItem(DUENO) || id; localStorage.setItem(DUENO, dueno); } catch (e) {}
+  if (dueno !== id) { CLAVE += '.' + id; FOTOS_DB += '.' + id; }
+}
 
 const DB = {
   estudiantes: [], casos: [], actas: [], cartas: [], bitacora: [], agenda: [], piar: [],
@@ -1476,7 +1507,7 @@ const Fotos = {
     if (this.db || !window.indexedDB) return Promise.resolve(this.db);
     return new Promise(res => {
       try {
-        const r = indexedDB.open('brujula-fotos', 1);
+        const r = indexedDB.open(FOTOS_DB, 1);
         r.onupgradeneeded = () => r.result.createObjectStore('fotos');
         r.onsuccess = () => { this.db = r.result; res(this.db); };
         r.onerror = () => res(null);
@@ -1862,6 +1893,107 @@ function menuDocumentos(titulo, lista) {
   const { d, cuerpo } = abrirModal({ titulo, cuerpo: '<div class="menu-docs">' + lista.map((x, i) => '<button type="button" class="doc-opcion" data-i="' + i + '">' + ic('formatos') + '<span>' + esc(x[0]) + '</span>' + ic('flecha') + '</button>').join('') + '</div>', acciones: [{ txt: 'Cerrar', cls: 'sec' }] });
   cuerpo.onclick = e => { const b = e.target.closest('[data-i]'); if (!b) return; const x = lista[b.dataset.i]; d.close(); abrirDocumento(x[0], x[1](), x[2]); };
 }
+
+;
+// ── cuenta
+// Cuenta: registro e ingreso con Firebase Authentication. Los casos no se suben: siguen solo en este navegador.
+const FIREBASE_CONFIG = {
+  apiKey: 'AIzaSyBfP9yeB90UrGYokNnwBaQRdx1jdh_6aCA',
+  authDomain: 'orientacion-app.firebaseapp.com',
+  projectId: 'orientacion-app',
+  appId: '1:158412179762:web:9031f5b130b24dea59ef2b'
+};
+let USUARIO = null;
+let nombreNuevo = '';
+
+const ERRORES_CUENTA = {
+  'auth/invalid-email': 'El correo no es válido.',
+  'auth/missing-email': 'Escribe tu correo.',
+  'auth/missing-password': 'Escribe tu contraseña.',
+  'auth/weak-password': 'La contraseña debe tener al menos 6 caracteres.',
+  'auth/email-already-in-use': 'Ya existe una cuenta con ese correo. Ingresa o recupera tu contraseña.',
+  'auth/invalid-credential': 'Correo o contraseña incorrectos.',
+  'auth/invalid-login-credentials': 'Correo o contraseña incorrectos.',
+  'auth/wrong-password': 'Correo o contraseña incorrectos.',
+  'auth/user-not-found': 'Correo o contraseña incorrectos.',
+  'auth/user-disabled': 'Esta cuenta está desactivada.',
+  'auth/too-many-requests': 'Demasiados intentos. Espera unos minutos y vuelve a intentarlo.',
+  'auth/network-request-failed': 'Sin conexión a internet. Conéctate para ingresar.'
+};
+
+function cajaAcceso(titulo, sub, cuerpo) {
+  return '<div class="acceso-caja"><div class="marca">' + ic('brujula') + '<span><b>Orientación APP</b></span></div>' +
+    '<h1>' + esc(titulo) + '</h1><p class="sub">' + esc(sub) + '</p>' + cuerpo + '</div>' +
+    '<p class="nota acceso-nota">Los casos y registros se guardan solo en tu equipo. La cuenta sirve para entrar, no para subir información.</p>';
+}
+
+function pintarAcceso(modo = 'ingresar', ok = '') {
+  const crear = modo === 'crear', rec = modo === 'recuperar';
+  const campo = (name, label, tipo, auto) => '<label class="campo"><span>' + label + '</span><input type="' + tipo + '" name="' + name + '" autocomplete="' + auto + '" required></label>';
+  const campos = (crear ? campo('nombre', 'Tu nombre', 'text', 'name') : '') +
+    campo('correo', 'Correo electrónico', 'email', 'email') +
+    (rec ? '' : campo('clave', 'Contraseña', 'password', crear ? 'new-password' : 'current-password')) +
+    (crear ? campo('confirmar', 'Repite la contraseña', 'password', 'new-password') : '');
+  const pie = crear ? '<span>¿Ya tienes cuenta?</span><button type="button" data-modo="ingresar">Ingresar</button>'
+    : rec ? '<button type="button" data-modo="ingresar">' + ic('atras') + 'Volver a ingresar</button>'
+    : '<button type="button" data-modo="recuperar">¿Olvidaste tu contraseña?</button><button type="button" data-modo="crear">Crear cuenta</button>';
+  const el = $('#acceso');
+  el.innerHTML = cajaAcceso(crear ? 'Crea tu cuenta' : rec ? 'Recupera tu contraseña' : 'Ingresa',
+    crear ? 'Regístrate con tu correo para usar la aplicación.' : rec ? 'Te enviaremos un enlace para crear una contraseña nueva.' : 'Escribe tu correo y tu contraseña.',
+    (ok ? '<p class="acceso-ok" role="status">' + esc(ok) + '</p>' : '') +
+    '<form class="acceso-form" novalidate>' + campos + '<p class="acceso-error" role="alert"></p>' +
+    '<button class="btn" type="submit">' + (crear ? 'Crear cuenta' : rec ? 'Enviar enlace' : 'Ingresar') + '</button></form>' +
+    '<p class="acceso-pie">' + pie + '</p>');
+  const form = $('.acceso-form', el), btn = $('button[type="submit"]', form), error = $('.acceso-error', el);
+  $$('[data-modo]', el).forEach(b => { b.onclick = () => pintarAcceso(b.dataset.modo); });
+  $('input', form).focus();
+  form.onsubmit = async e => {
+    e.preventDefault();
+    const f = Object.fromEntries(new FormData(form));
+    const correo = (f.correo || '').trim();
+    error.textContent = '';
+    if (crear && !f.nombre.trim()) { error.textContent = 'Escribe tu nombre.'; return; }
+    if (crear && f.clave !== f.confirmar) { error.textContent = 'Las contraseñas no coinciden.'; return; }
+    btn.disabled = true;
+    try {
+      const auth = firebase.auth();
+      if (rec) { await auth.sendPasswordResetEmail(correo); pintarAcceso('ingresar', 'Si ' + correo + ' tiene una cuenta, te llegará un correo con el enlace. Revisa también la carpeta de spam.'); return; }
+      if (crear) {
+        nombreNuevo = f.nombre.trim();
+        const r = await auth.createUserWithEmailAndPassword(correo, f.clave);
+        await r.user.updateProfile({ displayName: nombreNuevo });
+      } else await auth.signInWithEmailAndPassword(correo, f.clave);
+    } catch (err) {
+      error.textContent = ERRORES_CUENTA[err.code] || 'No se pudo completar. Intenta de nuevo.';
+      btn.disabled = false;
+    }
+  };
+}
+
+// Muestra el ingreso y llama a entrar(usuario) cuando hay sesión. Firebase recuerda la sesión en el equipo.
+function iniciarSesion(entrar) {
+  document.body.classList.add('sin-sesion');
+  if (!window.firebase || !FIREBASE_CONFIG.apiKey) {
+    $('#acceso').innerHTML = cajaAcceso('Sin conexión', 'Necesitas internet para ingresar. Conéctate y vuelve a cargar la página.',
+      '<button class="btn" type="button" onclick="location.reload()">Volver a cargar</button>');
+    return;
+  }
+  firebase.initializeApp(FIREBASE_CONFIG);
+  const auth = firebase.auth();
+  auth.languageCode = 'es';
+  auth.onAuthStateChanged(user => {
+    if (user && !USUARIO) {
+      USUARIO = user;
+      document.body.classList.remove('sin-sesion');
+      entrar(user);
+    } else if (!user && USUARIO) {
+      history.replaceState(null, '', location.pathname);
+      location.reload();
+    } else if (!user) pintarAcceso();
+  });
+}
+
+function cerrarSesion() { firebase.auth().signOut(); }
 
 ;
 // ── documentos
@@ -3566,8 +3698,11 @@ const SECCION_DE = { caso: 'casos', 'nuevo-caso': 'casos', estudiante: 'estudian
 
 function pintarMenu() {
   $('#menu').innerHTML = MENU.map(([g, items]) => '<p class="menu-grupo">' + esc(g) + '</p>' + items.map(([id, txt, icono]) => '<a href="#/' + id + '" data-sec="' + id + '">' + ic(icono) + '<span>' + esc(txt) + '</span></a>').join('')).join('') +
-    '<p class="menu-grupo"></p><a href="#/ajustes" data-sec="ajustes">' + ic('ajustes') + '<span>Ajustes y respaldo</span></a>';
+    '<p class="menu-grupo"></p><a href="#/ajustes" data-sec="ajustes">' + ic('ajustes') + '<span>Ajustes y respaldo</span></a>' +
+    '<a href="#/salir" data-sec="salir">' + ic('cerrar') + '<span>Cerrar sesión</span></a>';
 }
+
+VISTAS.salir = (args, el) => { el.innerHTML = '<p class="nota">Cerrando sesión…</p>'; cerrarSesion(); };
 
 function rutaActual() {
   const partes = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean).map(decodeURIComponent);
@@ -3666,6 +3801,7 @@ VISTAS.ajustes = (args, el) => {
       '<label class="btn sec chico">' + ic('subir') + '<span>Subir imagen</span><input type="file" accept="image/*" name="logoArchivo" hidden></label> ' + (a.logo ? boton('quitarLogo', 'Quitar', 'borrar', 'sec chico') : '') + '</div></div>' +
       '<div class="form-acc">' + boton('guardar', 'Guardar', 'check') + boton('muestra', 'Ver un formato de muestra', 'formatos', 'sec') + '</div></form>') +
     '</div><div class="col">' +
+    panel('Tu cuenta', datosDL([['Nombre', USUARIO.displayName || nombreNuevo || '—'], ['Correo', USUARIO.email]]) + '<div class="form-acc">' + boton('salir', 'Cerrar sesión', 'cerrar', 'sec') + '</div>') +
     panel('Copia de seguridad', '<p>Todo lo que registras se guarda <b>solo en este navegador y en este equipo</b>. No se envía a internet. Si borras el historial del navegador o cambias de equipo, lo pierdes, salvo que tengas una copia.</p>' +
       datosDL([['Registros guardados', String(total)], ['Última copia', a.ultimoRespaldo ? fLarga(a.ultimoRespaldo) : 'Nunca']]) +
       '<div class="form-acc">' + boton('exportar', 'Descargar copia', 'descargar') + '<label class="btn sec">' + ic('subir') + '<span>Restaurar una copia</span><input type="file" accept=".json,application/json" name="respaldoArchivo" hidden></label></div>' +
@@ -3692,6 +3828,7 @@ VISTAS.ajustes = (args, el) => {
     guardar: () => { Object.assign(a, leerForm(form, CAMPOS_AJUSTES)); guardar(); pintarMenu(); aviso('Ajustes guardados.'); },
     muestra: () => { Object.assign(a, leerForm(form, CAMPOS_AJUSTES)); guardar(); abrirFormato('f-citacion'); },
     quitarLogo: () => { a.logo = ''; guardar(); refrescar(); },
+    salir: () => cerrarSesion(),
     exportar: async () => { await exportarRespaldo(); aviso('Copia descargada.'); refrescar(); },
     borrarTodo: async () => {
       if (!(await confirmar('Se borrará toda la información de este navegador. Esta acción no se puede deshacer.', 'Borrar todo'))) return;
@@ -3701,13 +3838,18 @@ VISTAS.ajustes = (args, el) => {
   });
 };
 
-// ── Arranque
-cargar();
-pintarMenu();
-$('#abrir-menu').onclick = () => document.body.classList.add('menu-abierto');
-$('#velo').onclick = () => document.body.classList.remove('menu-abierto');
-window.addEventListener('hashchange', () => navegar(false));
-navegar(false);
+// ── Arranque: primero el ingreso; luego los datos de esa cuenta.
+iniciarSesion(user => {
+  usarCuenta(user.uid);
+  cargar();
+  const nombre = user.displayName || nombreNuevo;
+  if (!DB.ajustes.orientadora && nombre) { DB.ajustes.orientadora = nombre; guardar(); }
+  pintarMenu();
+  $('#abrir-menu').onclick = () => document.body.classList.add('menu-abierto');
+  $('#velo').onclick = () => document.body.classList.remove('menu-abierto');
+  window.addEventListener('hashchange', () => navegar(false));
+  navegar(false);
+});
 
 </script>
 </body>
