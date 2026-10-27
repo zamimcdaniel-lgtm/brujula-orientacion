@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Brújula · Orientación escolar</title>
+<title>Orientación APP</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500&family=Public+Sans:wght@400;600;700&display=swap" rel="stylesheet">
-<style>/* Brújula · Orientación escolar */
+<style>/* Orientación APP */
 :root {
   --papel: #f4f4f1; --superficie: #ffffff; --hundido: #ecece7; --linea: #dcdcd4; --linea-fuerte: #c4c4ba;
   --tinta: #1d2a2f; --tinta-2: #4a575c; --tinta-3: #78858a;
@@ -554,14 +554,14 @@ a.cifra:hover { border-color: var(--teal); }
   <aside class="lateral" aria-label="Menú principal">
     <a class="marca" href="#/inicio">
       <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/></svg>
-      <span><b>Brújula</b><small>Orientación escolar</small></span>
+      <span><b>Orientación APP</b></span>
     </a>
     <nav id="menu"></nav>
   </aside>
   <div class="principal">
     <header class="barra-movil">
       <button class="icono" id="abrir-menu" aria-label="Abrir menú"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
-      <a class="marca" href="#/inicio"><span><b>Brújula</b></span></a>
+      <a class="marca" href="#/inicio"><span><b>Orientación APP</b></span></a>
     </header>
     <main id="vista" tabindex="-1"></main>
   </div>
@@ -3567,8 +3567,6 @@ const SECCION_DE = { caso: 'casos', 'nuevo-caso': 'casos', estudiante: 'estudian
 function pintarMenu() {
   $('#menu').innerHTML = MENU.map(([g, items]) => '<p class="menu-grupo">' + esc(g) + '</p>' + items.map(([id, txt, icono]) => '<a href="#/' + id + '" data-sec="' + id + '">' + ic(icono) + '<span>' + esc(txt) + '</span></a>').join('')).join('') +
     '<p class="menu-grupo"></p><a href="#/ajustes" data-sec="ajustes">' + ic('ajustes') + '<span>Ajustes y respaldo</span></a>';
-  const inst = DB.ajustes.institucion;
-  $$('.marca small').forEach(s => { s.textContent = inst || 'Orientación escolar'; });
 }
 
 function rutaActual() {
@@ -3589,7 +3587,7 @@ function navegar(conservarScroll) {
   $$('#menu a').forEach(a => a.classList.toggle('activo', a.dataset.sec === sec));
   document.body.classList.remove('menu-abierto');
   const h1 = $('h1', nuevo);
-  document.title = (h1 && nombre !== 'inicio' ? h1.textContent + ' · ' : '') + 'Brújula · Orientación escolar';
+  document.title = (h1 && nombre !== 'inicio' ? h1.textContent + ' · ' : '') + 'Orientación APP';
   window.scrollTo(0, conservarScroll ? y : 0);
 }
 function refrescar() { navegar(true); }
