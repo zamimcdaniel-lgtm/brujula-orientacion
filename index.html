@@ -337,6 +337,25 @@ a.cifra:hover { border-color: var(--teal); }
 .quitar .ic { width: 14px; height: 14px; }
 .subir-foto { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; aspect-ratio: 1; border: 1.5px dashed var(--linea-fuerte); border-radius: var(--radio-chico); color: var(--tinta-3); font-size: .8rem; cursor: pointer; }
 .subir-foto:hover { border-color: var(--teal); color: var(--teal); }
+.adjuntos { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 6px; }
+.adjuntos li { position: relative; display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--linea); border-radius: var(--radio-chico); background: var(--superficie); font-size: .88rem; }
+.adjuntos li button[data-act], .adj-nombre { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; padding: 0; border: 0; background: none; color: var(--tinta); font: inherit; text-align: left; cursor: pointer; }
+.adjuntos span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.adjuntos .ic { flex: none; width: 18px; height: 18px; color: var(--teal); }
+.adjuntos button:hover span { color: var(--teal); text-decoration: underline; }
+.adjuntos .quitar { position: static; flex: none; background: var(--hundido); color: var(--tinta-2); }
+.subir-doc { cursor: pointer; }
+.guia-areas { border: 1px solid var(--linea); border-radius: var(--radio-chico); background: var(--hundido); padding: 0 12px; font-size: .86rem; }
+.guia-areas summary { padding: 9px 0; cursor: pointer; color: var(--teal); font-weight: 600; }
+.guia-areas dl { margin: 0 0 12px; }
+.guia-areas dt { font-weight: 600; color: var(--tinta); margin-top: 8px; }
+.guia-areas dd { margin: 2px 0 0; color: var(--tinta-2); line-height: 1.45; }
+.areas-guia { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.areas-guia li { padding: 14px 16px; border: 1px solid var(--linea); border-radius: var(--radio-chico); background: var(--superficie); }
+.areas-guia b { display: flex; gap: 8px; align-items: baseline; margin-bottom: 6px; }
+.areas-guia b i { font-style: normal; color: var(--teal); font-variant-numeric: tabular-nums; }
+.areas-guia p { margin: 0; color: var(--tinta-2); font-size: .9rem; line-height: 1.5; }
+.areas-guia small { display: block; margin-top: 8px; color: var(--tinta-3); font-size: .8rem; }
 .galeria { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; }
 .galeria a { display: block; aspect-ratio: 4 / 3; border-radius: var(--radio-chico); overflow: hidden; background: var(--hundido); }
 .galeria img { width: 100%; height: 100%; object-fit: cover; }
@@ -1354,6 +1373,24 @@ const AREAS_GESTION = [
   'Formación y acompañamiento docente'
 ];
 
+// Explicación breve de cada área, en el mismo orden de AREAS_GESTION.
+const AREAS_INFO = [
+  'Diagnóstico de necesidades, plan operativo anual de orientación, cronograma e informes de gestión ante rectoría.',
+  'Talleres, charlas y campañas para fortalecer habilidades socioemocionales y prevenir riesgos (consumo, violencias, salud mental, embarazo adolescente).',
+  'Escucha y orientación a estudiantes, valoración inicial, acuerdos y seguimiento de cada caso.',
+  'Activación de la ruta de atención integral cuando hay vulneración de derechos y remisión a ICBF, Comisaría, EPS, Policía u otras entidades.',
+  'Escuelas de familias, citaciones y acompañamiento a padres y acudientes en la formación de sus hijos.',
+  'Participación en el Comité Escolar de Convivencia, ajuste del manual de convivencia y aportes al PEI y al sistema de evaluación (SIEE).',
+  'Acompañamiento a estudiantes con discapacidad o necesidades de apoyo: ajustes razonables y Plan Individual de Ajustes Razonables (PIAR).',
+  'Exploración de intereses y aptitudes, proyecto de vida y orientación vocacional y profesional, sobre todo en los últimos grados.',
+  'Asesoría y formación a docentes y directivos para el manejo de situaciones en el aula y la detección temprana de riesgos.'
+];
+// Áreas de un registro; los registros antiguos guardaban una sola en «area» (bitácora) o «categoria» (agenda).
+const areasDe = r => Array.isArray(r.areas) ? r.areas : [r.area || r.categoria].filter(Boolean);
+// Guía desplegable para los formularios.
+const guiaAreasHTML = () => '<details class="guia-areas full"><summary>¿Qué incluye cada área de gestión?</summary><dl>' +
+  AREAS_GESTION.map((a, i) => '<dt>' + esc(a) + '</dt><dd>' + esc(AREAS_INFO[i]) + '</dd>').join('') + '</dl></details>';
+
 const CRONOGRAMA = [
   { mes: 'Enero', foco: 'Semana de desarrollo institucional y planeación', acciones: [
     { c: 'Promoción', a: 0, t: 'Formular el Plan Operativo Anual de Orientación Escolar y presentarlo a rectoría.' },
@@ -1753,7 +1790,7 @@ function campoHTML(c, v) {
 }
 
 function formHTML(campos, datos = {}) {
-  return '<div class="campos">' + campos.map(c => c.seccion ? '<h3 class="seccion-form full">' + esc(c.seccion) + '</h3>' : campoHTML(c, datos[c.k])).join('') + '</div>';
+  return '<div class="campos">' + campos.map(c => c.seccion ? '<h3 class="seccion-form full">' + esc(c.seccion) + '</h3>' : c.html ? c.html() : campoHTML(c, datos[c.k])).join('') + '</div>';
 }
 
 function leerForm(root, campos, base = {}) {
@@ -1776,33 +1813,47 @@ function validar(root, campos) {
   return true;
 }
 
-// ── Fotos: widget de carga con categorías
+// ── Fotos y documentos: widget de carga con categorías. La categoría 'doc' guarda archivos sin reducir.
+const DOCS_ACEPTADOS = '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.odt,.ods,.txt,image/*';
+const MAX_DOC_MB = 10;
+const leerArchivo = file => new Promise((res, rej) => { const l = new FileReader(); l.onload = () => res(l.result); l.onerror = rej; l.readAsDataURL(file); });
+
 function montarFotos(cont, fotos, categorias) {
   const estado = { lista: (fotos || []).map(f => Object.assign({}, f)), nuevos: [], quitados: [] };
+  const quitar = f => '<button type="button" class="quitar" data-quitar="' + f.id + '" aria-label="Quitar">' + ic('cerrar') + '</button>';
   const pinta = () => {
     cont.innerHTML = categorias.map(([cat, lab]) => {
       const items = estado.lista.filter(f => f.categoria === cat);
-      return '<div class="fotos-grupo"><div class="fotos-cab"><b>' + esc(lab) + '</b><span>' + items.length + '</span></div><div class="fotos-rejilla">' +
-        items.map(f => '<figure class="miniatura" data-fid="' + f.id + '"><img alt="" data-src="' + f.id + '"><button type="button" class="quitar" data-quitar="' + f.id + '" aria-label="Quitar foto">' + ic('cerrar') + '</button></figure>').join('') +
-        '<label class="subir-foto">' + ic('foto') + '<span>Agregar</span><input type="file" accept="image/*" multiple data-cat="' + cat + '" hidden></label></div></div>';
-    }).join('') + '<p class="nota">Las fotos se guardan reducidas en este navegador. Tómalas desde el celular o súbelas desde el computador.</p>';
+      const doc = cat === 'doc';
+      return '<div class="fotos-grupo"><div class="fotos-cab"><b>' + esc(lab) + '</b><span>' + items.length + '</span></div>' +
+        (doc ? '<ul class="adjuntos">' + items.map(f => '<li><button type="button" class="adj-nombre" data-bajar="' + f.id + '">' + ic('formatos') + '<span>' + esc(f.nombre || 'Documento') + '</span></button>' + quitar(f) + '</li>').join('') + '</ul>' +
+          '<label class="btn sec chico subir-doc">' + ic('subir') + '<span>Agregar documento</span><input type="file" accept="' + DOCS_ACEPTADOS + '" multiple data-cat="doc" hidden></label>'
+        : '<div class="fotos-rejilla">' + items.map(f => '<figure class="miniatura" data-fid="' + f.id + '"><img alt="" data-src="' + f.id + '">' + quitar(f) + '</figure>').join('') +
+          '<label class="subir-foto">' + ic('foto') + '<span>Agregar</span><input type="file" accept="image/*" multiple data-cat="' + cat + '" hidden></label></div>') + '</div>';
+    }).join('') + '<p class="nota">Las fotos se guardan reducidas en este navegador. Tómalas desde el celular o súbelas desde el computador.' +
+      (categorias.some(([c]) => c === 'doc') ? ' Documentos: PDF, Word, Excel, PowerPoint o imágenes, hasta ' + MAX_DOC_MB + ' MB cada uno.' : '') + '</p>';
     $$('img[data-src]', cont).forEach(async img => { img.src = await Fotos.obtener(img.dataset.src); });
   };
   cont.addEventListener('change', async e => {
     const inp = e.target.closest('input[type=file]');
     if (!inp) return;
+    const doc = inp.dataset.cat === 'doc';
     for (const file of inp.files) {
+      if (doc && file.size > MAX_DOC_MB * 1048576) { aviso('«' + file.name + '» supera ' + MAX_DOC_MB + ' MB.', 'error'); continue; }
       try {
-        const data = await comprimir(file);
+        const data = doc ? await leerArchivo(file) : await comprimir(file);
         const id = 'f' + uid();
         await Fotos.poner(id, data);
-        estado.lista.push({ id, categoria: inp.dataset.cat });
+        estado.lista.push(doc ? { id, categoria: 'doc', nombre: file.name } : { id, categoria: inp.dataset.cat });
         estado.nuevos.push(id);
-      } catch (err) { aviso('No se pudo leer una de las imágenes.', 'error'); }
+      } catch (err) { aviso('No se pudo leer ' + (doc ? '«' + file.name + '».' : 'una de las imágenes.'), 'error'); }
     }
+    inp.value = '';
     pinta();
   });
   cont.addEventListener('click', e => {
+    const d = e.target.closest('[data-bajar]');
+    if (d) return abrirAdjunto(estado.lista.find(f => f.id === d.dataset.bajar));
     const b = e.target.closest('[data-quitar]');
     if (!b) return;
     estado.quitados.push(b.dataset.quitar);
@@ -1815,6 +1866,16 @@ function montarFotos(cont, fotos, categorias) {
     confirmar: () => estado.quitados.forEach(id => Fotos.borrar(id)),
     cancelar: () => estado.nuevos.forEach(id => Fotos.borrar(id))
   };
+}
+
+// Lista de documentos adjuntos; cada uno se descarga con data-act="adjunto".
+const adjuntosLista = docs => '<ul class="adjuntos">' + docs.map(f => '<li><button type="button" data-act="adjunto" data-id="' + f.id + '">' + ic('formatos') + '<span>' + esc(f.nombre || 'Documento') + '</span>' + ic('descargar') + '</button></li>').join('') + '</ul>';
+
+async function abrirAdjunto(f) {
+  if (!f) return;
+  const data = await Fotos.obtener(f.id);
+  if (!data) return aviso('No se encontró el archivo en este navegador.', 'error');
+  descargarArchivo(f.nombre || 'documento', await (await fetch(data)).blob());
 }
 
 async function fotosDe(lista) {
@@ -2102,6 +2163,12 @@ function fotosHTML(fotos, titulo) {
   return h + '</table>';
 }
 
+// Documentos adjuntos: en el impreso solo se listan por nombre.
+function docsHTML(lista, titulo) {
+  const docs = (lista || []).filter(f => f.categoria === 'doc');
+  return docs.length ? h2(titulo) + '<ul>' + docs.map(f => '<li>' + esc(f.nombre || 'Documento') + '</li>').join('') + '</ul>' : '';
+}
+
 function lugarFecha(fecha) {
   const m = DB.ajustes.municipio;
   return (m ? esc(m) : '<span style="display:inline-block;width:5cm;border-bottom:1px solid #9aa5a2">&nbsp;</span>') + ', ' +
@@ -2291,13 +2358,14 @@ async function docBitacora(b) {
   b = b || {};
   const fotos = await fotosDe(b.fotos);
   const asist = lineas(b.asistentes).map(l => { const [n, g] = l.split('|').map(s => s.trim()); return [n, g || '', '']; });
-  const h = tablaKV([['Actividad', b.titulo], ['Fecha', fCorta(b.fecha)], ['Tipo', b.tipo], ['Población', b.poblacion], ['Componente de la ruta', b.componente], ['Área de gestión', b.area], ['Número de participantes', b.numAsistentes || (asist.length || '')], ['Responsable', DB.ajustes.orientadora]], 4) +
+  const h = tablaKV([['Actividad', b.titulo], ['Fecha', fCorta(b.fecha)], ['Tipo', b.tipo], ['Población', b.poblacion], ['Componente de la ruta', b.componente], ['Áreas de gestión', areasDe(b).join(', ')], ['Número de participantes', b.numAsistentes || (asist.length || '')], ['Responsable', DB.ajustes.orientadora]], 4) +
     h2('Objetivo') + caja(b.objetivo, 2) +
     h2('Descripción de la actividad') + caja(b.descripcion, 5) +
     h2('Resultados y observaciones') + caja(b.resultados, 3) +
     (asist.length || !b.fecha ? h2('Lista de asistencia') + tabla([{ t: 'N.°', w: '7%' }, 'Nombre', { t: 'Grado o rol', w: '20%' }, { t: 'Firma', w: '28%' }], asist.map((a, i) => [String(i + 1)].concat(a)), b.fecha ? 0 : 20) : '') +
-    fotosHTML(fotos.filter(f => f.categoria !== 'lista'), 'Registro fotográfico') +
+    fotosHTML(fotos.filter(f => f.categoria === 'evidencia'), 'Registro fotográfico') +
     fotosHTML(fotos.filter(f => f.categoria === 'lista'), 'Listas de asistencia firmadas') +
+    docsHTML(b.fotos, 'Documentos adjuntos') +
     firmas([firmaOrientacion()]);
   return docBase('Bitácora de actividad', h, { confidencial: false });
 }
@@ -2332,9 +2400,9 @@ async function docAgendaMes(anio, mes, conFotos = true) {
   const hechas = tareas.filter(t => t.hecho).length;
   let h = '<p>Total de actividades registradas: <b>' + tareas.length + '</b>. Realizadas: <b>' + hechas + '</b>.</p>' +
     tabla([{ t: 'Fecha', w: '12%' }, { t: 'Hora', w: '8%' }, 'Actividad', { t: 'Área de gestión', w: '24%' }, { t: 'Estado', w: '11%' }],
-      tareas.map(t => [fCorta(t.fecha), t.hora, (t.titulo || '') + (t.descripcion ? '\n' + t.descripcion : ''), t.categoria, t.hecho ? 'Realizada' : 'Pendiente']));
+      tareas.map(t => [fCorta(t.fecha), t.hora, (t.titulo || '') + (t.descripcion ? '\n' + t.descripcion : ''), areasDe(t).join(', '), t.hecho ? 'Realizada' : 'Pendiente']));
   if (conFotos) {
-    for (const t of tareas.filter(t => t.fotos && t.fotos.length)) h += fotosHTML(await fotosDe(t.fotos), fCorta(t.fecha) + ' · ' + t.titulo);
+    for (const t of tareas.filter(t => t.fotos && t.fotos.length)) h += fotosHTML((await fotosDe(t.fotos)).filter(f => f.categoria !== 'doc'), fCorta(t.fecha) + ' · ' + t.titulo) + docsHTML(t.fotos, 'Documentos · ' + t.titulo);
   }
   h += firmas([firmaOrientacion()]);
   return docBase('Registro de actividades de ' + MESES[mes] + ' de ' + anio, h, { sub: 'Orientación escolar', confidencial: false });
@@ -3095,7 +3163,7 @@ VISTAS.cartas = (args, el) => {
 
 // ── Bitácora de actividades con registro fotográfico y lista de asistencia
 const TIPOS_ACTIVIDAD = ['Taller con estudiantes', 'Charla', 'Escuela de familias', 'Jornada o campaña', 'Capacitación docente', 'Reunión institucional', 'Tamizaje grupal', 'Orientación socio-ocupacional', 'Otra'];
-const CATEGORIAS_FOTO = [['evidencia', 'Registro fotográfico'], ['lista', 'Listas de asistencia firmadas']];
+const CATEGORIAS_FOTO = [['evidencia', 'Registro fotográfico'], ['lista', 'Listas de asistencia firmadas'], ['doc', 'Documentos']];
 const camposBitacora = () => [
   { k: 'titulo', label: 'Nombre de la actividad', req: true, full: true },
   { k: 'fecha', label: 'Fecha', tipo: 'date', req: true, def: hoyISO() },
@@ -3103,7 +3171,8 @@ const camposBitacora = () => [
   { k: 'poblacion', label: 'Población', ph: 'Ej.: Grado 7.°, jornada mañana' },
   { k: 'numAsistentes', label: 'Número de participantes', tipo: 'number' },
   { k: 'componente', label: 'Componente de la ruta', tipo: 'select', ops: [['', '—']].concat(COMPONENTES_RUTA.map(c => c.nombre)) },
-  { k: 'area', label: 'Área de gestión', tipo: 'select', ops: [['', '—']].concat(AREAS_GESTION) },
+  { k: 'areas', label: 'Áreas de gestión (puedes marcar varias)', tipo: 'checks', ops: AREAS_GESTION },
+  { html: guiaAreasHTML },
   { k: 'objetivo', label: 'Objetivo', tipo: 'textarea', filas: 2 },
   { k: 'descripcion', label: 'Descripción de lo realizado', tipo: 'textarea', filas: 4 },
   { k: 'resultados', label: 'Resultados y observaciones', tipo: 'textarea', filas: 3 },
@@ -3113,7 +3182,7 @@ const camposBitacora = () => [
 function editarBitacora(datos, alGuardar) {
   const campos = camposBitacora();
   const cuerpo = document.createElement('div');
-  cuerpo.innerHTML = formHTML(campos, datos || {}) + '<h3 class="seccion-form">Evidencias</h3><div class="zona-fotos"></div>';
+  cuerpo.innerHTML = formHTML(campos, Object.assign({}, datos, { areas: areasDe(datos || {}) })) + '<h3 class="seccion-form">Evidencias</h3><div class="zona-fotos"></div>';
   const fotos = montarFotos($('.zona-fotos', cuerpo), datos && datos.fotos, CATEGORIAS_FOTO);
   abrirModal({ titulo: datos && datos.id ? 'Editar actividad' : 'Nueva actividad', cuerpo, ancho: 'ancho',
     alCerrar: ok => ok ? fotos.confirmar() : fotos.cancelar(),
@@ -3123,6 +3192,7 @@ function editarBitacora(datos, alGuardar) {
         if (!validar(root, campos)) return false;
         const b = leerForm(root, campos, datos && datos.id ? datos : {});
         b.fotos = fotos.valor();
+        delete b.area;
         upsert('bitacora', b); aviso('Actividad guardada.');
         if (alGuardar) alGuardar(b);
       } }
@@ -3141,7 +3211,7 @@ VISTAS.bitacora = ([id], el) => {
     const total = lista.reduce((s, b) => s + (Number(b.numAsistentes) || lineas(b.asistentes).length), 0);
     $('.resumen', el).innerHTML = lista.length ? '<b>' + lista.length + '</b> actividad' + (lista.length === 1 ? '' : 'es') + ' · <b>' + total + '</b> participantes' : '';
     $('.lista', el).innerHTML = lista.length ? '<div class="rejilla-bitacora">' + lista.map(b => {
-      const ev = (b.fotos || []).filter(x => x.categoria !== 'lista');
+      const ev = (b.fotos || []).filter(x => x.categoria === 'evidencia');
       return '<a class="tarjeta-bit" href="#/bitacora/' + b.id + '"><div class="tb-foto">' + (ev.length ? '<img alt="" data-src="' + ev[0].id + '">' : ic('bitacora')) + ((b.fotos || []).length ? '<span>' + ic('foto') + b.fotos.length + '</span>' : '') + '</div>' +
         '<div class="tb-txt"><small>' + fCorta(b.fecha) + ' · ' + esc(b.tipo || '') + '</small><b>' + esc(b.titulo) + '</b><span>' + esc(b.poblacion || '') + '</span></div></a>';
     }).join('') + '</div>' : vacioHTML(DB.bitacora.length ? 'No hay actividades con estos filtros.' : 'Registra talleres, escuelas de familias y jornadas con fotos y listas de asistencia.');
@@ -3182,17 +3252,19 @@ function detalleBitacora(id, el) {
   el.innerHTML = cabecera(b.titulo, { volver: '#/bitacora', sub: esc(fLarga(b.fecha)) + (b.tipo ? ' · ' + esc(b.tipo) : ''),
     acciones: boton('editar', 'Editar', 'editar', 'sec') + boton('doc', 'Ver e imprimir', 'imprimir') }) +
     '<div class="rejilla-2"><div class="col">' +
-    panel('Actividad', datosDL([['Población', b.poblacion], ['Participantes', b.numAsistentes || (asist.length || '')], ['Componente', b.componente], ['Área de gestión', b.area]]) +
+    panel('Actividad', datosDL([['Población', b.poblacion], ['Participantes', b.numAsistentes || (asist.length || '')], ['Componente', b.componente], ['Áreas de gestión', areasDe(b).join(' · ')]]) +
       bloqueTexto('Objetivo', b.objetivo) + bloqueTexto('Descripción', b.descripcion) + bloqueTexto('Resultados y observaciones', b.resultados)) +
     (asist.length ? panel('Asistencia (' + asist.length + ')', '<ol class="lista-asist">' + asist.map(l => { const [n, g] = l.split('|').map(s => s.trim()); return '<li>' + esc(n) + (g ? ' <small>' + esc(g) + '</small>' : '') + '</li>'; }).join('') + '</ol>') : '') +
     '</div><div class="col">' +
     panel('Registro fotográfico', galeria(grupo('evidencia')) || vacioHTML('Sin fotos. Agrégalas desde Editar.')) +
     panel('Listas de asistencia firmadas', galeria(grupo('lista')) || vacioHTML('Sin fotos de listas.')) +
+    (grupo('doc').length ? panel('Documentos', adjuntosLista(grupo('doc'))) : '') +
     panel('Zona de cuidado', boton('borrar', 'Borrar actividad', 'borrar', 'peligro sec chico')) + '</div></div>';
   $$('img[data-src]', el).forEach(async img => { img.src = await Fotos.obtener(img.dataset.src); });
   enlazar(el, {
     editar: () => editarBitacora(b, () => refrescar()),
     doc: () => abrirDocumento('Bitácora de actividad', docBitacora(b), 'bitacora-' + b.fecha + '-' + b.titulo),
+    adjunto: fid => abrirAdjunto((b.fotos || []).find(x => x.id === fid)),
     foto: async fid => {
       const src = await Fotos.obtener(fid);
       abrirModal({ titulo: 'Foto', cuerpo: '<img class="foto-grande" alt="" src="' + src + '">', ancho: 'ancho', acciones: [{ txt: 'Cerrar', cls: 'sec' }] });
@@ -3206,7 +3278,8 @@ const camposTarea = () => [
   { k: 'titulo', label: 'Tarea o actividad', req: true, full: true },
   { k: 'fecha', label: 'Fecha', tipo: 'date', req: true, def: hoyISO() },
   { k: 'hora', label: 'Hora', tipo: 'time' },
-  { k: 'categoria', label: 'Área de gestión', tipo: 'select', ops: [['', '—']].concat(AREAS_GESTION), full: true },
+  { k: 'areas', label: 'Áreas de gestión (puedes marcar varias)', tipo: 'checks', ops: AREAS_GESTION },
+  { html: guiaAreasHTML },
   { k: 'descripcion', label: 'Detalle', tipo: 'textarea', filas: 3 },
   { k: 'hecho', label: 'Realizada', tipo: 'check' }
 ];
@@ -3214,8 +3287,8 @@ const camposTarea = () => [
 function editarTarea(datos, alGuardar) {
   const campos = camposTarea();
   const cuerpo = document.createElement('div');
-  cuerpo.innerHTML = formHTML(campos, datos || {}) + '<h3 class="seccion-form">Fotos de evidencia</h3><div class="zona-fotos"></div>';
-  const fotos = montarFotos($('.zona-fotos', cuerpo), datos && datos.fotos, [['evidencia', 'Evidencias']]);
+  cuerpo.innerHTML = formHTML(campos, Object.assign({}, datos, { areas: areasDe(datos || {}) })) + '<h3 class="seccion-form">Evidencias</h3><div class="zona-fotos"></div>';
+  const fotos = montarFotos($('.zona-fotos', cuerpo), datos && datos.fotos, [['evidencia', 'Fotos'], ['doc', 'Documentos']]);
   abrirModal({ titulo: datos && datos.id ? 'Editar tarea' : 'Nueva tarea', cuerpo,
     alCerrar: ok => ok ? fotos.confirmar() : fotos.cancelar(),
     acciones: [
@@ -3224,6 +3297,7 @@ function editarTarea(datos, alGuardar) {
         if (!validar(root, campos)) return false;
         const t = leerForm(root, campos, datos && datos.id ? datos : {});
         t.fotos = fotos.valor();
+        delete t.categoria;
         upsert('agenda', t); aviso('Tarea guardada.');
         if (alGuardar) alGuardar(t);
       } }
@@ -3260,8 +3334,8 @@ VISTAS.agenda = (args, el) => {
       '<section class="panel dia-detalle"><div class="panel-cab"><h2>' + esc(DIAS[aFecha(st.dia).getDay()]) + ' ' + fLarga(st.dia) + '</h2><div class="panel-acc">' + boton('nueva', 'Agregar', 'mas', 'chico') + '</div></div>' +
       (citas.length ? '<ul class="citas">' + citas.map(({ c, s }) => { const e = porId('estudiantes', c.estudianteId) || {}; return '<li><a href="#/caso/' + c.id + '">' + ic('casos') + '<span><b>Seguimiento: ' + esc(e.nombre || '') + '</b><small>' + esc(s.acuerdos || etiquetaModalidad(c)) + '</small></span></a></li>'; }).join('') + '</ul>' : '') +
       (tareas.length ? '<ul class="tareas">' + tareas.map(t => '<li class="' + (t.hecho ? 'hecha' : '') + '"><label class="check-tarea"><input type="checkbox" data-hecho="' + t.id + '"' + (t.hecho ? ' checked' : '') + '><span class="sr">Realizada</span></label>' +
-        '<div class="t-txt"><b>' + (t.hora ? '<time>' + esc(t.hora) + '</time> ' : '') + esc(t.titulo) + '</b>' + (t.categoria ? '<small>' + esc(t.categoria) + '</small>' : '') + (t.descripcion ? '<p>' + esc(t.descripcion) + '</p>' : '') +
-        ((t.fotos || []).length ? '<span class="t-fotos">' + ic('foto') + t.fotos.length + ' foto' + (t.fotos.length === 1 ? '' : 's') + '</span>' : '') + '</div>' +
+        '<div class="t-txt"><b>' + (t.hora ? '<time>' + esc(t.hora) + '</time> ' : '') + esc(t.titulo) + '</b>' + (areasDe(t).length ? '<small>' + esc(areasDe(t).join(' · ')) + '</small>' : '') + (t.descripcion ? '<p>' + esc(t.descripcion) + '</p>' : '') +
+        ((t.fotos || []).length ? '<span class="t-fotos">' + ic('foto') + t.fotos.length + ' evidencia' + (t.fotos.length === 1 ? '' : 's') + '</span>' : '') + '</div>' +
         '<div class="fr-acc">' + botonIcono('editar', 'editar', 'Editar', t.id) + botonIcono('borrar', 'borrar', 'Borrar', t.id) + '</div></li>').join('') + '</ul>'
         : (citas.length ? '' : vacioHTML('Nada registrado este día.'))) + '</section></div>';
   };
@@ -3522,7 +3596,7 @@ VISTAS.actividades = (args, el) => {
     ver: id => { const a = ACTIVIDADES.find(x => x.id === id); abrirDocumento(a.titulo, docActividad(a), 'actividad-' + a.titulo); },
     registrar: id => {
       const a = ACTIVIDADES.find(x => x.id === id);
-      editarBitacora({ titulo: a.titulo, objetivo: a.objetivo, poblacion: a.grados, tipo: a.tema === 'Familias' ? 'Escuela de familias' : a.tema === 'Docentes' ? 'Capacitación docente' : 'Taller con estudiantes', componente: 'Prevención', area: AREAS_GESTION[1] },
+      editarBitacora({ titulo: a.titulo, objetivo: a.objetivo, poblacion: a.grados, tipo: a.tema === 'Familias' ? 'Escuela de familias' : a.tema === 'Docentes' ? 'Capacitación docente' : 'Taller con estudiantes', componente: 'Prevención', areas: [AREAS_GESTION[1]] },
         b => { location.hash = '#/bitacora/' + b.id; });
     }
   });
@@ -3554,6 +3628,12 @@ VISTAS.cronograma = (args, el) => {
   pinta();
 };
 
+// ── Áreas de gestión: qué abarca cada una
+VISTAS.areas = (args, el) => {
+  el.innerHTML = cabecera('Áreas de gestión', { sub: 'Las funciones del docente orientador agrupadas por área. Úsalas para clasificar actividades y tareas; una misma actividad puede responder a varias.' }) +
+    '<ul class="areas-guia">' + AREAS_GESTION.map((a, i) => '<li><b><i>' + String(i + 1).padStart(2, '0') + '</i>' + esc(a) + '</b><p>' + esc(AREAS_INFO[i]) + '</p></li>').join('') + '</ul>';
+};
+
 ;
 // ── vista-informe
 // Informe de gestión: consolida todo lo registrado en un año o en un rango de fechas.
@@ -3580,7 +3660,7 @@ function datosInforme(desde, hasta) {
 // Actividad registrada por cada área de gestión (funciones del docente orientador).
 function porArea(d) {
   return AREAS_GESTION.map((a, i) => {
-    const bit = d.bitacora.filter(b => b.area === a), tar = d.agenda.filter(t => t.categoria === a);
+    const bit = d.bitacora.filter(b => areasDe(b).includes(a)), tar = d.agenda.filter(t => areasDe(t).includes(a));
     const extra = [];
     if (i === 2) extra.push(d.casos.filter(c => c.modalidad !== 'ruta').length + ' casos de orientación', d.seguimientos.length + ' seguimientos');
     if (i === 3) extra.push(d.casos.filter(c => c.modalidad === 'ruta').length + ' rutas activadas', d.entidades.length + ' entidades convocadas', d.cartas.length + ' cartas de articulación');
@@ -3635,8 +3715,8 @@ function csvCasos(d) {
       (c.seguimientos || []).length, (c.entidades || []).map(x => entidadInfo(x).nombre).join(' / '), (c.instrumentos || []).map(i => i.nombre).join(' / ')];
   })));
 }
-const csvActividades = d => aCSV([['Fecha', 'Actividad', 'Tipo', 'Población', 'Participantes', 'Componente', 'Área de gestión']].concat(d.bitacora.map(b => [b.fecha, b.titulo, b.tipo, b.poblacion, b.numAsistentes, b.componente, b.area])));
-const csvAgenda = d => aCSV([['Fecha', 'Hora', 'Tarea', 'Área de gestión', 'Realizada', 'Detalle']].concat(d.agenda.sort((a, b) => (a.fecha + (a.hora || '')).localeCompare(b.fecha + (b.hora || ''))).map(t => [t.fecha, t.hora, t.titulo, t.categoria, t.hecho ? 'Sí' : 'No', t.descripcion])));
+const csvActividades = d => aCSV([['Fecha', 'Actividad', 'Tipo', 'Población', 'Participantes', 'Componente', 'Área de gestión']].concat(d.bitacora.map(b => [b.fecha, b.titulo, b.tipo, b.poblacion, b.numAsistentes, b.componente, areasDe(b).join('; ')])));
+const csvAgenda = d => aCSV([['Fecha', 'Hora', 'Tarea', 'Área de gestión', 'Realizada', 'Detalle']].concat(d.agenda.sort((a, b) => (a.fecha + (a.hora || '')).localeCompare(b.fecha + (b.hora || ''))).map(t => [t.fecha, t.hora, t.titulo, areasDe(t).join('; '), t.hecho ? 'Sí' : 'No', t.descripcion])));
 
 VISTAS.informe = (args, el) => {
   const anio = new Date().getFullYear();
@@ -3691,7 +3771,7 @@ function menuCSV(lista) {
 const MENU = [
   ['Día a día', [['inicio', 'Inicio', 'inicio'], ['casos', 'Casos', 'casos'], ['estudiantes', 'Estudiantes', 'usuario'], ['agenda', 'Agenda', 'agenda'], ['bitacora', 'Bitácora', 'bitacora']]],
   ['Documentos', [['actas', 'Actas', 'actas'], ['cartas', 'Cartas', 'cartas'], ['piar', 'PIAR', 'piar'], ['informe', 'Informe de gestión', 'informe']]],
-  ['Consulta', [['rutas', 'Rutas de atención', 'rutas'], ['normativa', 'Normativa', 'normativa'], ['formatos', 'Formatos', 'formatos'], ['instrumentos', 'Instrumentos', 'instrumentos'], ['actividades', 'Actividades', 'actividades'], ['cronograma', 'Cronograma', 'cronograma']]]
+  ['Consulta', [['rutas', 'Rutas de atención', 'rutas'], ['normativa', 'Normativa', 'normativa'], ['formatos', 'Formatos', 'formatos'], ['instrumentos', 'Instrumentos', 'instrumentos'], ['actividades', 'Actividades', 'actividades'], ['cronograma', 'Cronograma', 'cronograma'], ['areas', 'Áreas de gestión', 'lista']]]
 ];
 // Rutas internas que pertenecen a una opción del menú.
 const SECCION_DE = { caso: 'casos', 'nuevo-caso': 'casos', estudiante: 'estudiantes', ruta: 'rutas' };
@@ -3760,7 +3840,7 @@ VISTAS.inicio = (args, el) => {
     cifra(pendEnt, 'entidades sin respuesta', '#/casos', pendEnt ? 'alerta' : '') + cifra(DB.bitacora.filter(b => (b.fecha || '').startsWith(String(d.getFullYear()))).length, 'actividades este año', '#/bitacora') + '</div>' +
     '<div class="rejilla-2"><div class="col">' +
     panel('Hoy', (tareasHoy.length || citasDelDia(hoy).length) ? '<ul class="lista-hoy">' + citasDelDia(hoy).map(x => '<li class="cita"><a href="#/caso/' + x.c.id + '">' + ic('reloj') + '<span><b>Seguimiento: ' + esc((porId('estudiantes', x.c.estudianteId) || {}).nombre || '') + '</b><small>' + esc(etiquetaModalidad(x.c)) + '</small></span></a></li>').join('') +
-      tareasHoy.map(t => '<li class="' + (t.hecho ? 'hecha' : '') + '"><a href="#/agenda">' + ic(t.hecho ? 'check' : 'agenda') + '<span><b>' + esc(t.titulo) + '</b><small>' + esc([t.hora, t.categoria].filter(Boolean).join(' · ')) + '</small></span></a></li>').join('') + '</ul>'
+      tareasHoy.map(t => '<li class="' + (t.hecho ? 'hecha' : '') + '"><a href="#/agenda">' + ic(t.hecho ? 'check' : 'agenda') + '<span><b>' + esc(t.titulo) + '</b><small>' + esc([t.hora].concat(areasDe(t)).filter(Boolean).join(' · ')) + '</small></span></a></li>').join('') + '</ul>'
       : vacioHTML('Nada programado para hoy.'), '<a class="btn sec chico" href="#/agenda">' + ic('agenda') + '<span>Agenda</span></a>') +
     panel('Próximos seguimientos', proximas.length ? '<ul class="lista-citas">' + proximas.slice(0, 8).map(filaCita).join('') + '</ul>' : vacioHTML('No hay seguimientos programados en las próximas dos semanas.')) +
     '</div><div class="col">' +
