@@ -435,6 +435,8 @@ a.cifra:hover { border-color: var(--teal); }
 .p-tarea { background: var(--teal); }
 .p-tarea.ok { background: var(--ok); }
 .p-cita { background: var(--n2); }
+.p-caso { background: var(--n1); }
+.registros-caso a { text-decoration: none; }
 .cal-ley { margin: 12px 0 0; font-size: .8rem; color: var(--tinta-3); }
 .cal-ley i { min-width: 10px; height: 10px; padding: 0; vertical-align: -1px; }
 
@@ -542,12 +544,31 @@ a.cifra:hover { border-color: var(--teal); }
 .mes-cuenta { font-size: .8rem; color: var(--tinta-3); }
 .mes[open] summary { border-bottom: 1px solid var(--linea); }
 .mes ul { list-style: none; margin: 0; padding: 6px 16px; }
-.mes li { padding: 8px 0; border-top: 1px solid var(--linea); }
+.mes li { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; border-top: 1px solid var(--linea); }
+.mes li label { flex: 1; }
+.mes li .evid { display: flex; gap: 5px; align-items: center; margin-top: 3px; color: var(--teal); font-size: .78rem; }
+.mes li .evid .ic { width: 13px; height: 13px; flex: none; }
 .mes li:first-child { border-top: 0; }
 .mes li label { display: flex; gap: 10px; cursor: pointer; }
 .mes li input { accent-color: var(--teal); width: 17px; height: 17px; margin-top: 3px; flex: none; }
 .mes li small { display: block; }
-.acciones-mes { padding: 0 16px 14px; }
+.acciones-mes { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 16px 14px; }
+.plan-cab .bloque + .bloque { margin-top: 12px; }
+.proyectos { list-style: none; margin: 0; padding: 0; }
+.proyectos li { display: flex; gap: 12px; align-items: flex-start; padding: 11px 0; border-top: 1px solid var(--linea); }
+.proyectos li:first-child { border-top: 0; }
+.proyectos .t-txt { flex: 1; min-width: 0; }
+.proyectos p { margin: 4px 0 0; font-size: .88rem; color: var(--tinta-2); }
+.cumple { border: 1px solid var(--linea); border-radius: var(--radio-chico); background: var(--hundido); margin-top: 6px; }
+.cumple > summary { padding: 11px 14px; cursor: pointer; font-weight: 600; }
+.cumple[open] > summary { border-bottom: 1px solid var(--linea); }
+.cumple > .hint, .cumple fieldset { margin: 10px 14px; }
+.cumple fieldset { border: 0; padding: 0; }
+.cumple legend { font-weight: 600; font-size: .9rem; margin-bottom: 4px; }
+.cumple-mes { border-top: 1px solid var(--linea); }
+.cumple-mes > summary { padding: 7px 0; cursor: pointer; font-size: .9rem; }
+.cumple-mes .campo-check { align-items: flex-start; padding: 4px 0 4px 6px; font-size: .86rem; }
+.cumple-mes .campo-check input { margin-top: 2px; flex: none; }
 
 /* Informe */
 .atajos { margin-left: auto; }
@@ -1463,6 +1484,105 @@ const CRONOGRAMA = [
   ] }
 ];
 
+// Sugerencia para el Proyecto transversal de Educación para la Sexualidad y Construcción de Ciudadanía (PESCC).
+// Es solo un punto de partida: cada institución lo ajusta a su diagnóstico y a su PEI.
+const CRONOGRAMA_PESCC = [
+  { mes: 'Enero', foco: 'Planeación del proyecto', acciones: [
+    { c: 'Proyecto', a: 0, t: 'Conformar o actualizar el equipo docente del proyecto.' },
+    { c: 'Proyecto', a: 0, t: 'Revisar la evaluación del año anterior y ajustar el plan del proyecto al PEI.' }
+  ] },
+  { mes: 'Febrero', foco: 'Diagnóstico y socialización', acciones: [
+    { c: 'Proyecto', a: 0, t: 'Diagnóstico de necesidades en sexualidad y convivencia por grados.' },
+    { c: 'Promoción', a: 8, t: 'Socializar el proyecto con docentes y directivos.' }
+  ] },
+  { mes: 'Marzo', foco: 'Autoconocimiento y autoestima', acciones: [
+    { c: 'Promoción', a: 1, t: 'Talleres de autoconocimiento, autoestima y cuidado del cuerpo.' },
+    { c: 'Promoción', a: 4, t: 'Escuela de familias: hablar de sexualidad en casa.' }
+  ] },
+  { mes: 'Abril', foco: 'Derechos humanos, sexuales y reproductivos', acciones: [
+    { c: 'Promoción', a: 1, t: 'Talleres sobre derechos humanos, sexuales y reproductivos.' }
+  ] },
+  { mes: 'Mayo', foco: 'Prevención de violencias', acciones: [
+    { c: 'Prevención', a: 1, t: 'Talleres de prevención de la violencia sexual y de cómo pedir ayuda.' },
+    { c: 'Prevención', a: 8, t: 'Orientar a docentes en la detección temprana y la ruta de atención.' }
+  ] },
+  { mes: 'Junio', foco: 'Equidad de género', acciones: [
+    { c: 'Promoción', a: 1, t: 'Actividades sobre equidad de género y respeto a la diferencia.' },
+    { c: 'Seguimiento', a: 0, t: 'Evaluar los avances del proyecto en el primer semestre.' }
+  ] },
+  { mes: 'Julio', foco: 'Relaciones afectivas', acciones: [
+    { c: 'Promoción', a: 1, t: 'Talleres sobre relaciones afectivas sanas y consentimiento.' }
+  ] },
+  { mes: 'Agosto', foco: 'Proyecto de vida', acciones: [
+    { c: 'Promoción', a: 7, t: 'Talleres de proyecto de vida y toma de decisiones.' }
+  ] },
+  { mes: 'Septiembre', foco: 'Prevención del embarazo en la adolescencia', acciones: [
+    { c: 'Prevención', a: 1, t: 'Jornada de prevención del embarazo en la adolescencia.' },
+    { c: 'Prevención', a: 4, t: 'Escuela de familias sobre prevención del embarazo adolescente.' }
+  ] },
+  { mes: 'Octubre', foco: 'Salud sexual y autocuidado', acciones: [
+    { c: 'Prevención', a: 3, t: 'Charlas de salud sexual y reproductiva con apoyo del sector salud.' }
+  ] },
+  { mes: 'Noviembre', foco: 'Cierre con estudiantes', acciones: [
+    { c: 'Seguimiento', a: 0, t: 'Evaluar el proyecto con estudiantes y docentes.' }
+  ] },
+  { mes: 'Diciembre', foco: 'Informe', acciones: [
+    { c: 'Seguimiento', a: 0, t: 'Informe final del proyecto y propuestas para el año siguiente.' }
+  ] }
+];
+
+// ── Planes editables. Cada uno arranca con la sugerencia y se guarda en DB.planes.
+const PLANES = { orientacion: 'Orientación escolar', pescc: 'Proyecto de Educación para la Sexualidad y Construcción de Ciudadanía' };
+const PLANES_CORTO = { orientacion: 'Orientación escolar', pescc: 'Proyecto de sexualidad (PESCC)' };
+const SECCIONES_PLAN = [['propositos', 'Propósitos'], ['compromisos', 'Compromisos'], ['metas', 'Metas de calidad'], ['estrategias', 'Estrategias metodológicas'], ['salidas', 'Salidas pedagógicas']];
+const COMPONENTES_CRONO = ['Promoción', 'Prevención', 'Seguimiento', 'Salida pedagógica', 'Proyecto'];
+// «Propósitos del área» en orientación, «del proyecto» en el PESCC.
+const etiquetaSeccion = (clave, k, lab) => (k === 'propositos' || k === 'compromisos') ? lab + (clave === 'pescc' ? ' del proyecto' : ' del área') : lab;
+
+function semillaPlan(clave) {
+  const base = clave === 'pescc' ? CRONOGRAMA_PESCC : CRONOGRAMA;
+  const p = { anio: String(new Date().getFullYear()), proyectos: [] };
+  SECCIONES_PLAN.forEach(([k]) => { p[k] = ''; });
+  p.meses = base.map((m, mi) => ({ mes: m.mes, foco: m.foco, acciones: m.acciones.map((a, ai) => ({
+    id: uid(), c: a.c, areas: [AREAS_GESTION[a.a]], t: a.t, fecha: '', responsable: '',
+    hecho: clave === 'orientacion' && !!DB.cronoHecho[mi + '-' + ai] })) }));
+  return p;
+}
+
+function plan(clave) {
+  if (!DB.planes[clave]) { DB.planes[clave] = semillaPlan(clave); guardar(); }
+  return DB.planes[clave];
+}
+
+const todasAcciones = () => Object.keys(PLANES).flatMap(k => plan(k).meses.flatMap((m, mi) => m.acciones.map(a => ({ k, mi, a }))));
+const buscarAccion = id => todasAcciones().find(x => x.a.id === id);
+
+// Marca como cumplidas las actividades del cronograma; devuelve cuántas cambiaron.
+function marcarCumplidas(ids) {
+  let n = 0;
+  (ids || []).forEach(id => { const x = buscarAccion(id); if (x && !x.a.hecho) { x.a.hecho = true; n++; } });
+  if (n) guardar();
+  return n;
+}
+const avisoCumplidas = n => n ? ' ' + n + (n === 1 ? ' actividad marcada' : ' actividades marcadas') + ' como cumplida' + (n === 1 ? '' : 's') + ' en el cronograma.' : '';
+
+// Registros de bitácora y agenda que dicen cumplir una actividad.
+const registrosDeAccion = id => DB.bitacora.filter(b => (b.cumple || []).includes(id)).map(b => 'Bitácora: ' + b.titulo + ' (' + fCorta(b.fecha) + ')')
+  .concat(DB.agenda.filter(t => (t.cumple || []).includes(id)).map(t => 'Agenda: ' + t.titulo + ' (' + fCorta(t.fecha) + ')' + (t.hecho ? '' : ', pendiente')));
+
+// Bloque de formulario para elegir qué actividades del cronograma cumple un registro.
+function cumpleHTML(sel, fecha) {
+  sel = sel || [];
+  const mi = fecha ? aFecha(fecha).getMonth() : new Date().getMonth();
+  return '<details class="cumple full"' + (sel.length ? ' open' : '') + '><summary>Cumple actividades del cronograma' + (sel.length ? ' (' + sel.length + ')' : '') + '</summary>' +
+    '<p class="hint">Marca las actividades planeadas que se cumplen con este registro. Quedarán como cumplidas en el cronograma.</p>' +
+    Object.keys(PLANES).map(k => '<fieldset><legend>' + esc(PLANES_CORTO[k]) + '</legend>' + plan(k).meses.map((m, i) => m.acciones.length ?
+      '<details class="cumple-mes"' + (i === mi || m.acciones.some(a => sel.includes(a.id)) ? ' open' : '') + '><summary>' + esc(m.mes) + '</summary>' +
+      m.acciones.map(a => '<label class="campo-check"><input type="checkbox" name="cumple" value="' + esc(a.id) + '"' + (sel.includes(a.id) ? ' checked' : '') + '><span>' + esc(a.t) + (a.hecho && !sel.includes(a.id) ? ' <small>· ya cumplida</small>' : '') + '</span></label>').join('') + '</details>' : '').join('') + '</fieldset>').join('') +
+    '</details>';
+}
+const leerCumple = root => $$('input[name="cumple"]:checked', root).map(i => i.value);
+
 ;
 // ── almacen
 // Almacenamiento local: registros en localStorage y fotos en IndexedDB.
@@ -1479,7 +1599,7 @@ function usarCuenta(id) {
 
 const DB = {
   estudiantes: [], casos: [], actas: [], cartas: [], bitacora: [], agenda: [], piar: [],
-  cronoHecho: {},
+  cronoHecho: {}, planes: {},
   ajustes: { institucion: '', dane: '', municipio: '', sede: '', orientadora: '', cargo: 'Docente orientador(a)', rector: '', logo: '', encabezado: 'institucion', ultimoRespaldo: '' }
 };
 const COLECCIONES = ['estudiantes', 'casos', 'actas', 'cartas', 'bitacora', 'agenda', 'piar'];
@@ -1491,6 +1611,7 @@ function cargar() {
     const d = JSON.parse(raw);
     COLECCIONES.forEach(c => { if (Array.isArray(d[c])) DB[c] = d[c]; });
     if (d.cronoHecho) DB.cronoHecho = d.cronoHecho;
+    if (d.planes) DB.planes = d.planes;
     if (d.ajustes) Object.assign(DB.ajustes, d.ajustes);
   } catch (e) { console.warn('No se pudieron leer los datos', e); }
 }
@@ -1619,6 +1740,7 @@ async function importarRespaldo(texto) {
   if (d.app !== 'brujula-orientacion' || !d.db) throw new Error('El archivo no es un respaldo de esta aplicación.');
   COLECCIONES.forEach(c => { DB[c] = Array.isArray(d.db[c]) ? d.db[c] : []; });
   DB.cronoHecho = d.db.cronoHecho || {};
+  DB.planes = d.db.planes || {};
   Object.assign(DB.ajustes, d.db.ajustes || {});
   await Fotos.vaciar();
   for (const [id, data] of Object.entries(d.fotos || {})) await Fotos.poner(id, data);
@@ -2422,15 +2544,20 @@ function docInstrumento(inst, reg, estudiante) {
   return docBase(inst.nombre + ' · ' + inst.titulo, h, { confidencial: !!estudiante });
 }
 
-// ── Plan operativo anual a partir del cronograma
-function docPOA(anio) {
-  let h = '<p>Plan de trabajo sugerido para el año ' + esc(anio) + '. Ajuste fechas y responsables según el calendario académico institucional.</p>';
-  CRONOGRAMA.forEach((m, mi) => {
-    h += h2(m.mes + ' · ' + m.foco) + tabla([{ t: 'Componente', w: '13%' }, { t: 'Área de gestión', w: '22%' }, 'Acción', { t: 'Fecha', w: '11%' }, { t: 'Cumplida', w: '9%' }],
-      m.acciones.map((a, ai) => [a.c, AREAS_GESTION[a.a], a.t, '', { html: '<span class="cuadro' + (DB.cronoHecho[mi + '-' + ai] ? ' si' : '') + '"></span>' }]));
+// ── Plan operativo anual a partir del cronograma editable
+function docPOA(clave) {
+  const P = plan(clave);
+  let h = '<p class="sub">Año ' + esc(P.anio || anioActual()) + '</p>';
+  SECCIONES_PLAN.forEach(([k, l]) => { if (!vacio(P[k])) h += h2(etiquetaSeccion(clave, k, l)) + parrafos(P[k]); });
+  if (P.proyectos.length) h += h2('Proyectos') + tabla([{ t: 'Proyecto', w: '28%' }, 'Descripción breve de las actividades'], P.proyectos.map(x => [x.nombre, x.descripcion]));
+  h += h2('Cronograma de actividades');
+  P.meses.forEach(m => {
+    if (!m.acciones.length) return;
+    h += '<h3>' + esc(m.mes + (m.foco ? ' · ' + m.foco : '')) + '</h3>' + tabla([{ t: 'Componente', w: '13%' }, { t: 'Áreas de gestión', w: '20%' }, 'Actividad', { t: 'Fecha', w: '11%' }, { t: 'Responsable', w: '14%' }, { t: 'Cumplida', w: '9%' }],
+      m.acciones.map(a => [a.c, (a.areas || []).join(', '), a.t, fCorta(a.fecha), a.responsable || '', { html: '<span class="cuadro' + (a.hecho ? ' si' : '') + '"></span>' }]));
   });
   h += firmas([firmaOrientacion(), firmaRector()]);
-  return docBase('Plan Operativo Anual de Orientación Escolar', h, { confidencial: false });
+  return docBase(clave === 'pescc' ? 'Proyecto de Educación para la Sexualidad y Construcción de Ciudadanía' : 'Plan Operativo Anual de Orientación Escolar', h, { confidencial: false });
 }
 
 // ── Reporte de situación por docente (formato en blanco)
@@ -3182,7 +3309,7 @@ const camposBitacora = () => [
 function editarBitacora(datos, alGuardar) {
   const campos = camposBitacora();
   const cuerpo = document.createElement('div');
-  cuerpo.innerHTML = formHTML(campos, Object.assign({}, datos, { areas: areasDe(datos || {}) })) + '<h3 class="seccion-form">Evidencias</h3><div class="zona-fotos"></div>';
+  cuerpo.innerHTML = formHTML(campos, Object.assign({}, datos, { areas: areasDe(datos || {}) })) + cumpleHTML(datos && datos.cumple, datos && datos.fecha) + '<h3 class="seccion-form">Evidencias</h3><div class="zona-fotos"></div>';
   const fotos = montarFotos($('.zona-fotos', cuerpo), datos && datos.fotos, CATEGORIAS_FOTO);
   abrirModal({ titulo: datos && datos.id ? 'Editar actividad' : 'Nueva actividad', cuerpo, ancho: 'ancho',
     alCerrar: ok => ok ? fotos.confirmar() : fotos.cancelar(),
@@ -3192,8 +3319,9 @@ function editarBitacora(datos, alGuardar) {
         if (!validar(root, campos)) return false;
         const b = leerForm(root, campos, datos && datos.id ? datos : {});
         b.fotos = fotos.valor();
+        b.cumple = leerCumple(root);
         delete b.area;
-        upsert('bitacora', b); aviso('Actividad guardada.');
+        upsert('bitacora', b); aviso('Actividad guardada.' + avisoCumplidas(marcarCumplidas(b.cumple)));
         if (alGuardar) alGuardar(b);
       } }
     ] });
@@ -3287,7 +3415,7 @@ const camposTarea = () => [
 function editarTarea(datos, alGuardar) {
   const campos = camposTarea();
   const cuerpo = document.createElement('div');
-  cuerpo.innerHTML = formHTML(campos, Object.assign({}, datos, { areas: areasDe(datos || {}) })) + '<h3 class="seccion-form">Evidencias</h3><div class="zona-fotos"></div>';
+  cuerpo.innerHTML = formHTML(campos, Object.assign({}, datos, { areas: areasDe(datos || {}) })) + cumpleHTML(datos && datos.cumple, datos && datos.fecha) + '<h3 class="seccion-form">Evidencias</h3><div class="zona-fotos"></div>';
   const fotos = montarFotos($('.zona-fotos', cuerpo), datos && datos.fotos, [['evidencia', 'Fotos'], ['doc', 'Documentos']]);
   abrirModal({ titulo: datos && datos.id ? 'Editar tarea' : 'Nueva tarea', cuerpo,
     alCerrar: ok => ok ? fotos.confirmar() : fotos.cancelar(),
@@ -3297,8 +3425,10 @@ function editarTarea(datos, alGuardar) {
         if (!validar(root, campos)) return false;
         const t = leerForm(root, campos, datos && datos.id ? datos : {});
         t.fotos = fotos.valor();
+        t.cumple = leerCumple(root);
         delete t.categoria;
-        upsert('agenda', t); aviso('Tarea guardada.');
+        upsert('agenda', t);
+        aviso('Tarea guardada.' + (t.hecho ? avisoCumplidas(marcarCumplidas(t.cumple)) : (t.cumple.length ? ' Al marcarla como realizada se cumplirán sus actividades del cronograma.' : '')));
         if (alGuardar) alGuardar(t);
       } }
     ] });
@@ -3306,6 +3436,9 @@ function editarTarea(datos, alGuardar) {
 
 // Seguimientos de casos programados para una fecha.
 const citasDelDia = iso => DB.casos.flatMap(c => (c.seguimientos || []).filter(s => s.proximaFecha === iso).map(s => ({ c, s })));
+// Casos abiertos y seguimientos registrados en una fecha.
+const casosDelDia = iso => DB.casos.filter(c => c.fechaApertura === iso).map(c => ({ c, s: null }))
+  .concat(DB.casos.flatMap(c => (c.seguimientos || []).filter(s => s.fecha === iso).map(s => ({ c, s }))));
 
 VISTAS.agenda = (args, el) => {
   const st = VISTAS.agenda.estado || (VISTAS.agenda.estado = { dia: hoyISO() });
@@ -3319,25 +3452,27 @@ VISTAS.agenda = (args, el) => {
     for (let i = 0; i < desfase; i++) celdas += '<span class="dia vacio"></span>';
     for (let n = 1; n <= diasMes; n++) {
       const iso = pref + '-' + String(n).padStart(2, '0');
-      const t = DB.agenda.filter(x => x.fecha === iso); const citas = citasDelDia(iso).length;
+      const t = DB.agenda.filter(x => x.fecha === iso); const citas = citasDelDia(iso).length; const regs = casosDelDia(iso).length;
       celdas += '<button type="button" class="dia' + (iso === st.dia ? ' sel' : '') + (iso === hoy ? ' hoy' : '') + '" data-act="dia" data-id="' + iso + '"><b>' + n + '</b>' +
-        '<span class="puntos">' + (t.length ? '<i class="p-tarea' + (t.every(x => x.hecho) ? ' ok' : '') + '">' + t.length + '</i>' : '') + (citas ? '<i class="p-cita">' + citas + '</i>' : '') + '</span></button>';
+        '<span class="puntos">' + (t.length ? '<i class="p-tarea' + (t.every(x => x.hecho) ? ' ok' : '') + '">' + t.length + '</i>' : '') + (regs ? '<i class="p-caso">' + regs + '</i>' : '') + (citas ? '<i class="p-cita">' + citas + '</i>' : '') + '</span></button>';
     }
     const tareas = DB.agenda.filter(x => x.fecha === st.dia).sort((a, b) => (a.hora || '99').localeCompare(b.hora || '99'));
     const citas = citasDelDia(st.dia);
+    const regs = casosDelDia(st.dia);
     const delMes = DB.agenda.filter(x => (x.fecha || '').startsWith(pref));
     el.innerHTML = cabecera('Agenda', { sub: 'Registro diario de tareas y actividades', acciones: boton('informe', 'Informe del mes', 'descargar', 'sec') + boton('nueva', 'Nueva tarea', 'mas') }) +
       '<div class="rejilla-agenda"><section class="panel calendario"><div class="cal-cab">' + botonIcono('mesAnt', 'atras', 'Mes anterior') + '<h2>' + MESES[mes] + ' ' + anio + '</h2>' + botonIcono('mesSig', 'flecha', 'Mes siguiente') + '</div>' +
       '<div class="cal-sem">' + ['L', 'M', 'M', 'J', 'V', 'S', 'D'].map(x => '<span>' + x + '</span>').join('') + '</div><div class="cal-dias">' + celdas + '</div>' +
-      '<p class="cal-ley"><i class="p-tarea"></i> tareas <i class="p-cita"></i> seguimientos programados · <b>' + delMes.filter(x => x.hecho).length + '</b> de ' + delMes.length + ' realizadas este mes</p>' +
+      '<p class="cal-ley"><i class="p-tarea"></i> tareas <i class="p-caso"></i> casos y seguimientos registrados <i class="p-cita"></i> seguimientos programados · <b>' + delMes.filter(x => x.hecho).length + '</b> de ' + delMes.length + ' realizadas este mes</p>' +
       (st.dia !== hoy ? boton('hoy', 'Ir a hoy', 'reloj', 'sec chico') : '') + '</section>' +
       '<section class="panel dia-detalle"><div class="panel-cab"><h2>' + esc(DIAS[aFecha(st.dia).getDay()]) + ' ' + fLarga(st.dia) + '</h2><div class="panel-acc">' + boton('nueva', 'Agregar', 'mas', 'chico') + '</div></div>' +
+      (regs.length ? '<ul class="citas registros-caso">' + regs.map(({ c, s }) => { const e = porId('estudiantes', c.estudianteId) || {}; return '<li><a href="#/caso/' + c.id + '">' + ic('casos') + '<span><b>' + (s ? 'Seguimiento realizado' + (s.tipo ? ' (' + esc(s.tipo) + ')' : '') : 'Nuevo caso') + ': ' + esc(e.nombre || '') + '</b><small>' + esc(s ? (s.descripcion || s.acuerdos || '') : etiquetaModalidad(c)) + '</small></span></a></li>'; }).join('') + '</ul>' : '') +
       (citas.length ? '<ul class="citas">' + citas.map(({ c, s }) => { const e = porId('estudiantes', c.estudianteId) || {}; return '<li><a href="#/caso/' + c.id + '">' + ic('casos') + '<span><b>Seguimiento: ' + esc(e.nombre || '') + '</b><small>' + esc(s.acuerdos || etiquetaModalidad(c)) + '</small></span></a></li>'; }).join('') + '</ul>' : '') +
       (tareas.length ? '<ul class="tareas">' + tareas.map(t => '<li class="' + (t.hecho ? 'hecha' : '') + '"><label class="check-tarea"><input type="checkbox" data-hecho="' + t.id + '"' + (t.hecho ? ' checked' : '') + '><span class="sr">Realizada</span></label>' +
         '<div class="t-txt"><b>' + (t.hora ? '<time>' + esc(t.hora) + '</time> ' : '') + esc(t.titulo) + '</b>' + (areasDe(t).length ? '<small>' + esc(areasDe(t).join(' · ')) + '</small>' : '') + (t.descripcion ? '<p>' + esc(t.descripcion) + '</p>' : '') +
         ((t.fotos || []).length ? '<span class="t-fotos">' + ic('foto') + t.fotos.length + ' evidencia' + (t.fotos.length === 1 ? '' : 's') + '</span>' : '') + '</div>' +
         '<div class="fr-acc">' + botonIcono('editar', 'editar', 'Editar', t.id) + botonIcono('borrar', 'borrar', 'Borrar', t.id) + '</div></li>').join('') + '</ul>'
-        : (citas.length ? '' : vacioHTML('Nada registrado este día.'))) + '</section></div>';
+        : (citas.length || regs.length ? '' : vacioHTML('Nada registrado este día.'))) + '</section></div>';
   };
   const mover = n => { const d = aFecha(st.dia); st.dia = isoLocal(new Date(d.getFullYear(), d.getMonth() + n, 1)); pinta(); };
   enlazar(el, {
@@ -3357,7 +3492,9 @@ VISTAS.agenda = (args, el) => {
   });
   el.onchange = e => {
     const id = e.target.dataset.hecho; if (!id) return;
-    const t = porId('agenda', id); t.hecho = e.target.checked; upsert('agenda', t); pinta();
+    const t = porId('agenda', id); t.hecho = e.target.checked; upsert('agenda', t);
+    const n = t.hecho ? marcarCumplidas(t.cumple) : 0; if (n) aviso(avisoCumplidas(n).trim());
+    pinta();
   };
   pinta();
 };
@@ -3604,27 +3741,90 @@ VISTAS.actividades = (args, el) => {
 };
 
 // ── Cronograma anual sugerido
-VISTAS.cronograma = (args, el) => {
+VISTAS.cronograma = ([clave], el) => {
+  clave = PLANES[clave] ? clave : 'orientacion';
+  const P = plan(clave);
   const mesActual = new Date().getMonth();
-  const total = CRONOGRAMA.reduce((s, m) => s + m.acciones.length, 0);
+  const abiertos = new Set([mesActual]);
   const pinta = () => {
-    const hechas = Object.values(DB.cronoHecho).filter(Boolean).length;
-    el.innerHTML = cabecera('Cronograma anual', { sub: 'Sugerencia para calendario A. Ajústala al calendario de tu secretaría de educación.',
-      acciones: boton('poa', 'Plan operativo anual', 'imprimir') }) +
-      '<div class="progreso-anual"><div class="barra"><span style="width:' + Math.round(hechas / total * 100) + '%"></span></div><p><b>' + hechas + '</b> de ' + total + ' acciones cumplidas</p></div>' +
-      '<div class="meses">' + CRONOGRAMA.map((m, mi) => {
-        const ok = m.acciones.filter((a, ai) => DB.cronoHecho[mi + '-' + ai]).length;
-        return '<details class="mes' + (mi === mesActual ? ' actual' : '') + '"' + (mi === mesActual ? ' open' : '') + '><summary><span class="mes-nom">' + esc(m.mes) + '</span><span class="mes-foco">' + esc(m.foco) + '</span><span class="mes-cuenta">' + ok + '/' + m.acciones.length + '</span></summary>' +
-          '<ul class="acciones-mes">' + m.acciones.map((a, ai) => '<li><label><input type="checkbox" data-crono="' + mi + '-' + ai + '"' + (DB.cronoHecho[mi + '-' + ai] ? ' checked' : '') + '><span>' + esc(a.t) + '<small>' + esc(a.c) + ' · ' + esc(AREAS_GESTION[a.a]) + '</small></span></label></li>').join('') + '</ul></details>';
+    const acciones = P.meses.flatMap(m => m.acciones);
+    const hechas = acciones.filter(a => a.hecho).length, total = acciones.length;
+    const secciones = SECCIONES_PLAN.map(([k, l]) => bloqueTexto(etiquetaSeccion(clave, k, l), P[k])).join('');
+    el.innerHTML = cabecera('Cronograma anual ' + (P.anio || ''), { sub: esc(PLANES[clave]) + '. Todo es editable: ajústalo a tu institución y al calendario de tu secretaría de educación.',
+      acciones: boton('plan', 'Editar plan', 'editar', 'sec') + boton('poa', 'Plan operativo anual', 'imprimir') }) +
+      '<nav class="pestanas">' + Object.keys(PLANES).map(k => '<a' + (k === clave ? ' class="activa"' : '') + ' href="#/cronograma' + (k === 'orientacion' ? '' : '/' + k) + '">' + esc(PLANES_CORTO[k]) + '</a>').join('') + '</nav>' +
+      '<div class="progreso-anual"><div class="barra"><span style="width:' + (total ? Math.round(hechas / total * 100) : 0) + '%"></span></div><p><b>' + hechas + '</b> de ' + total + ' actividades cumplidas</p></div>' +
+      '<div class="rejilla-2 plan-cab"><div class="col">' + panel('Propósitos, compromisos y metas', secciones || vacioHTML('Escribe los propósitos, compromisos, metas de calidad, estrategias metodológicas y salidas pedagógicas.', boton('plan', 'Completar', 'editar', 'chico')), secciones ? botonIcono('plan', 'editar', 'Editar') : '') + '</div>' +
+      '<div class="col">' + panel('Proyectos', P.proyectos.length ? '<ul class="proyectos">' + P.proyectos.map(x => '<li><div class="t-txt"><b>' + esc(x.nombre) + '</b>' + parrafos(x.descripcion) + '</div><div class="fr-acc">' + botonIcono('editarProy', 'editar', 'Editar', x.id) + botonIcono('borrarProy', 'borrar', 'Borrar', x.id) + '</div></li>').join('') + '</ul>'
+        : vacioHTML('Agrega los proyectos del ' + (clave === 'pescc' ? 'proyecto transversal' : 'área') + ' con una descripción breve de sus actividades.'), boton('nuevoProy', 'Agregar', 'mas', 'chico')) + '</div></div>' +
+      '<div class="meses">' + P.meses.map((m, mi) => {
+        const ok = m.acciones.filter(a => a.hecho).length;
+        return '<details class="mes' + (mi === mesActual ? ' actual' : '') + '" data-mes="' + mi + '"' + (abiertos.has(mi) ? ' open' : '') + '><summary><span class="mes-nom">' + esc(m.mes) + '</span><span class="mes-foco">' + esc(m.foco || '') + '</span><span class="mes-cuenta">' + ok + '/' + m.acciones.length + '</span></summary>' +
+          '<ul>' + m.acciones.map(a => {
+            const regs = registrosDeAccion(a.id);
+            return '<li><label><input type="checkbox" data-crono="' + esc(a.id) + '"' + (a.hecho ? ' checked' : '') + '><span>' + esc(a.t) +
+              '<small>' + esc([a.c, (a.areas || []).join(' · '), a.fecha ? fCorta(a.fecha) : '', a.responsable].filter(Boolean).join(' · ')) + '</small>' +
+              (regs.length ? '<small class="evid">' + ic('check') + esc(regs.join(' | ')) + '</small>' : '') + '</span></label>' +
+              '<div class="fr-acc">' + botonIcono('editarAcc', 'editar', 'Editar actividad', a.id) + botonIcono('borrarAcc', 'borrar', 'Borrar actividad', a.id) + '</div></li>';
+          }).join('') + '</ul><div class="acciones-mes">' + boton('nuevaAcc', 'Agregar actividad', 'mas', 'sec chico', mi) + boton('foco', 'Editar tema del mes', 'editar', 'sec chico', mi) + '</div></details>';
       }).join('') + '</div>';
   };
-  el.onchange = e => {
-    const k = e.target.dataset.crono; if (!k) return;
-    DB.cronoHecho[k] = e.target.checked; guardar();
-    const mes = e.target.closest('details'); const abierto = mes && mes.open;
-    pinta(); if (abierto) $$('.mes', el)[Number(k.split('-')[0])].open = true;
+  const repinta = extra => { abiertos.clear(); $$('.mes[open]', el).forEach(d => abiertos.add(Number(d.dataset.mes))); if (extra != null) abiertos.add(extra); pinta(); };
+  const editarProyecto = x => {
+    const campos = [{ k: 'nombre', label: 'Nombre del proyecto', req: true, full: true }, { k: 'descripcion', label: 'Descripción breve de las actividades', tipo: 'textarea', filas: 4, full: true }];
+    abrirModal({ titulo: x ? 'Editar proyecto' : 'Nuevo proyecto', cuerpo: formHTML(campos, x || {}), acciones: [{ txt: 'Cancelar', cls: 'sec' }, { txt: 'Guardar', icono: 'check', fn: r => {
+      if (!validar(r, campos)) return false;
+      const n = leerForm(r, campos, x || { id: uid() });
+      if (!x) P.proyectos.push(n); else Object.assign(x, n);
+      guardar(); repinta();
+    } }] });
   };
-  enlazar(el, { poa: () => abrirDocumento('Plan operativo anual', docPOA(new Date().getFullYear()), 'plan-operativo-anual-' + new Date().getFullYear()) });
+  const ubicar = id => { for (let mi = 0; mi < P.meses.length; mi++) { const pos = P.meses[mi].acciones.findIndex(a => a.id === id); if (pos >= 0) return { mi, pos, a: P.meses[mi].acciones[pos] }; } return null; };
+  const editarAccion = (mi, u) => {
+    const a = u ? u.a : null;
+    const campos = [
+      { k: 'mes', label: 'Mes', tipo: 'select', ops: P.meses.map((m, i) => [String(i), m.mes]) },
+      { k: 'c', label: 'Componente', tipo: 'select', ops: COMPONENTES_CRONO },
+      { k: 't', label: 'Actividad', tipo: 'textarea', filas: 2, req: true, full: true },
+      { k: 'fecha', label: 'Fecha prevista', tipo: 'date' },
+      { k: 'responsable', label: 'Responsable' },
+      { k: 'areas', label: 'Áreas de gestión', tipo: 'checks', ops: AREAS_GESTION },
+      { k: 'hecho', label: 'Cumplida', tipo: 'check' }
+    ];
+    abrirModal({ titulo: a ? 'Editar actividad' : 'Nueva actividad', cuerpo: formHTML(campos, Object.assign({ c: 'Promoción' }, a, { mes: String(mi) })), acciones: [{ txt: 'Cancelar', cls: 'sec' }, { txt: 'Guardar', icono: 'check', fn: r => {
+      if (!validar(r, campos)) return false;
+      const n = leerForm(r, campos, Object.assign({}, a || { id: uid() }));
+      const destino = Number(n.mes); delete n.mes;
+      if (a) P.meses[mi].acciones.splice(u.pos, 1);
+      const lista = P.meses[destino].acciones;
+      if (a && destino === mi) lista.splice(u.pos, 0, n); else lista.push(n);
+      guardar(); repinta(destino);
+    } }] });
+  };
+  el.onchange = e => {
+    const id = e.target.dataset.crono; if (!id) return;
+    const u = ubicar(id); if (!u) return;
+    u.a.hecho = e.target.checked; guardar(); repinta();
+  };
+  enlazar(el, {
+    plan: () => {
+      const campos = [{ k: 'anio', label: 'Año', tipo: 'number' }].concat(SECCIONES_PLAN.map(([k, l]) => ({ k, label: etiquetaSeccion(clave, k, l), tipo: 'textarea', filas: 4, full: true, hint: k === 'salidas' ? 'Una salida por línea: lugar, grado y propósito.' : 'Una idea por línea.' })));
+      abrirModal({ titulo: 'Editar plan: ' + PLANES_CORTO[clave], cuerpo: formHTML(campos, P), ancho: 'ancho', acciones: [{ txt: 'Cancelar', cls: 'sec' }, { txt: 'Guardar', icono: 'check', fn: r => {
+        Object.assign(P, leerForm(r, campos, {})); guardar(); aviso('Plan guardado.'); repinta();
+      } }] });
+    },
+    poa: () => abrirDocumento('Plan operativo anual', docPOA(clave), 'plan-operativo-' + clave + '-' + (P.anio || anioActual())),
+    nuevoProy: () => editarProyecto(null),
+    editarProy: id => editarProyecto(P.proyectos.find(x => x.id === id)),
+    borrarProy: async id => { if (await confirmar('¿Borrar este proyecto?', 'Borrar')) { P.proyectos = P.proyectos.filter(x => x.id !== id); guardar(); repinta(); } },
+    nuevaAcc: mi => editarAccion(Number(mi), null),
+    editarAcc: id => { const u = ubicar(id); if (u) editarAccion(u.mi, u); },
+    borrarAcc: async id => { const u = ubicar(id); if (u && await confirmar('¿Borrar esta actividad del cronograma?', 'Borrar')) { P.meses[u.mi].acciones.splice(u.pos, 1); guardar(); repinta(); } },
+    foco: mi => {
+      const m = P.meses[Number(mi)]; const campos = [{ k: 'foco', label: 'Tema o énfasis de ' + m.mes, full: true }];
+      abrirModal({ titulo: 'Tema del mes', cuerpo: formHTML(campos, m), acciones: [{ txt: 'Cancelar', cls: 'sec' }, { txt: 'Guardar', icono: 'check', fn: r => { m.foco = leerForm(r, campos, {}).foco; guardar(); repinta(); } }] });
+    }
+  });
   pinta();
 };
 
@@ -3697,8 +3897,8 @@ async function docInforme(d, { anexos = false, fotos = false } = {}) {
   if (d.cartas.length) h += h2('8. Cartas de solicitud') + tabla([{ t: 'Fecha', w: '13%' }, 'Dirigida a', 'Solicitud'], d.cartas.map(k => [fCorta(k.fecha), k.destEntidad, k.tipo]));
   if (d.piar.length) h += h2('9. Inclusión: PIAR') + tabla(['Estudiante', { t: 'Año', w: '10%' }, { t: 'Revisiones en el periodo', w: '24%' }],
     d.piar.map(p => { const e = porId('estudiantes', p.estudianteId); return [e ? e.nombre : '', p.anio, String((p.revisiones || []).filter(x => enRango(x.fecha, d.desde, d.hasta)).length)]; }));
-  const hechas = Object.values(DB.cronoHecho).filter(Boolean).length, total = CRONOGRAMA.reduce((s, m) => s + m.acciones.length, 0);
-  h += h2('10. Cumplimiento del plan operativo') + '<p>' + hechas + ' de ' + total + ' acciones del cronograma marcadas como cumplidas (' + Math.round(hechas / total * 100) + ' %).</p>' +
+  h += h2('10. Cumplimiento de los cronogramas') + Object.keys(PLANES).map(k => { const ac = plan(k).meses.flatMap(m => m.acciones), n = ac.filter(a => a.hecho).length;
+    return '<p>' + esc(PLANES[k]) + ': ' + n + ' de ' + ac.length + ' actividades cumplidas (' + (ac.length ? Math.round(n / ac.length * 100) : 0) + ' %).</p>'; }).join('') +
     h2('Logros, dificultades y recomendaciones') + caja('', 6) + firmas([firmaOrientacion(), firmaRector()]);
   if (anexos && d.bitacora.length) {
     const partes = [];
@@ -3912,7 +4112,7 @@ VISTAS.ajustes = (args, el) => {
     exportar: async () => { await exportarRespaldo(); aviso('Copia descargada.'); refrescar(); },
     borrarTodo: async () => {
       if (!(await confirmar('Se borrará toda la información de este navegador. Esta acción no se puede deshacer.', 'Borrar todo'))) return;
-      COLECCIONES.forEach(k => { DB[k] = []; }); DB.cronoHecho = {};
+      COLECCIONES.forEach(k => { DB[k] = []; }); DB.cronoHecho = {}; DB.planes = {};
       await Fotos.vaciar(); guardar(); aviso('Información borrada.'); location.hash = '#/inicio';
     }
   });
