@@ -2523,6 +2523,9 @@ async function docAgendaMes(anio, mes, conFotos = true) {
   let h = '<p>Total de actividades registradas: <b>' + tareas.length + '</b>. Realizadas: <b>' + hechas + '</b>.</p>' +
     tabla([{ t: 'Fecha', w: '12%' }, { t: 'Hora', w: '8%' }, 'Actividad', { t: 'Área de gestión', w: '24%' }, { t: 'Estado', w: '11%' }],
       tareas.map(t => [fCorta(t.fecha), t.hora, (t.titulo || '') + (t.descripcion ? '\n' + t.descripcion : ''), areasDe(t).join(', '), t.hecho ? 'Realizada' : 'Pendiente']));
+  const acciones = [];
+  for (let n = 1; n <= new Date(anio, mes + 1, 0).getDate(); n++) { const iso = pref + '-' + String(n).padStart(2, '0'); registrosDelDia(iso).forEach(x => acciones.push([fCorta(iso), x.tipo, x.titulo.replace(/^[^:]*: /, ''), x.sub])); }
+  if (acciones.length) h += h2('Otras acciones registradas') + tabla([{ t: 'Fecha', w: '12%' }, { t: 'Tipo', w: '16%' }, 'Detalle', 'Descripción'], acciones);
   if (conFotos) {
     for (const t of tareas.filter(t => t.fotos && t.fotos.length)) h += fotosHTML((await fotosDe(t.fotos)).filter(f => f.categoria !== 'doc'), fCorta(t.fecha) + ' · ' + t.titulo) + docsHTML(t.fotos, 'Documentos · ' + t.titulo);
   }
@@ -3436,9 +3439,25 @@ function editarTarea(datos, alGuardar) {
 
 // Seguimientos de casos programados para una fecha.
 const citasDelDia = iso => DB.casos.flatMap(c => (c.seguimientos || []).filter(s => s.proximaFecha === iso).map(s => ({ c, s })));
-// Casos abiertos y seguimientos registrados en una fecha.
-const casosDelDia = iso => DB.casos.filter(c => c.fechaApertura === iso).map(c => ({ c, s: null }))
-  .concat(DB.casos.flatMap(c => (c.seguimientos || []).filter(s => s.fecha === iso).map(s => ({ c, s }))));
+// Todas las acciones registradas en una fecha: casos, seguimientos, tamizajes, entidades, actividades, actas, cartas y PIAR.
+function registrosDelDia(iso) {
+  const nom = id => (porId('estudiantes', id) || {}).nombre || '';
+  const r = [];
+  DB.casos.forEach(c => {
+    if (c.fechaApertura === iso) r.push({ icono: 'casos', tipo: 'Nuevo caso', titulo: 'Nuevo caso: ' + nom(c.estudianteId), sub: (etiquetaModalidad(c)), href: '#/caso/' + c.id });
+    (c.seguimientos || []).filter(s => s.fecha === iso).forEach(s => r.push({ icono: 'casos', tipo: 'Seguimiento', titulo: 'Seguimiento realizado' + (s.tipo ? ' (' + (s.tipo) + ')' : '') + ': ' + nom(c.estudianteId), sub: (s.descripcion || s.acuerdos || ''), href: '#/caso/' + c.id }));
+    (c.instrumentos || []).filter(i => i.fecha === iso).forEach(i => r.push({ icono: 'casos', tipo: 'Tamizaje', titulo: 'Tamizaje aplicado: ' + nom(c.estudianteId), sub: ([i.nombre, i.interpretacion].filter(Boolean).join(' · ')), href: '#/caso/' + c.id }));
+    (c.entidades || []).filter(x => x.fechaEnvio === iso).forEach(x => r.push({ icono: 'cartas', tipo: 'Entidad convocada', titulo: 'Entidad convocada: ' + (entidadInfo(x).nombre), sub: nom(c.estudianteId), href: '#/caso/' + c.id }));
+  });
+  DB.bitacora.filter(b => b.fecha === iso).forEach(b => r.push({ icono: 'bitacora', tipo: 'Actividad', titulo: 'Actividad: ' + (b.titulo), sub: ([b.tipo, b.poblacion, b.numAsistentes && b.numAsistentes + ' participantes'].filter(Boolean).join(' · ')), href: '#/bitacora/' + b.id }));
+  DB.actas.filter(a => a.fecha === iso).forEach(a => { const e = estudianteDeCaso(a.casoId); r.push({ icono: 'actas', tipo: 'Acta', titulo: 'Acta: ' + (etiquetaActa(a.tipo)) + (a.numero ? ' N.° ' + (a.numero) : ''), sub: ([e && e.nombre, a.entidad, a.objetivo].filter(Boolean).join(' · ')), href: '#/actas' }); });
+  DB.cartas.filter(k => k.fecha === iso).forEach(k => r.push({ icono: 'cartas', tipo: 'Carta', titulo: 'Carta de articulación: ' + (k.destEntidad || ''), sub: ([k.tipo, k.necesidad].filter(Boolean).join(' · ')), href: '#/cartas' }));
+  DB.piar.forEach(p => {
+    if (p.fecha === iso) r.push({ icono: 'piar', tipo: 'PIAR', titulo: 'PIAR elaborado: ' + nom(p.estudianteId), sub: (p.condicion || ''), href: '#/piar/' + p.id });
+    (p.revisiones || []).filter(x => x.fecha === iso).forEach(x => r.push({ icono: 'piar', tipo: 'Revisión PIAR', titulo: 'Revisión del PIAR: ' + nom(p.estudianteId), sub: ([x.periodo, x.avances].filter(Boolean).join(' · ')), href: '#/piar/' + p.id }));
+  });
+  return r;
+}
 
 VISTAS.agenda = (args, el) => {
   const st = VISTAS.agenda.estado || (VISTAS.agenda.estado = { dia: hoyISO() });
@@ -3452,21 +3471,21 @@ VISTAS.agenda = (args, el) => {
     for (let i = 0; i < desfase; i++) celdas += '<span class="dia vacio"></span>';
     for (let n = 1; n <= diasMes; n++) {
       const iso = pref + '-' + String(n).padStart(2, '0');
-      const t = DB.agenda.filter(x => x.fecha === iso); const citas = citasDelDia(iso).length; const regs = casosDelDia(iso).length;
+      const t = DB.agenda.filter(x => x.fecha === iso); const citas = citasDelDia(iso).length; const regs = registrosDelDia(iso).length;
       celdas += '<button type="button" class="dia' + (iso === st.dia ? ' sel' : '') + (iso === hoy ? ' hoy' : '') + '" data-act="dia" data-id="' + iso + '"><b>' + n + '</b>' +
         '<span class="puntos">' + (t.length ? '<i class="p-tarea' + (t.every(x => x.hecho) ? ' ok' : '') + '">' + t.length + '</i>' : '') + (regs ? '<i class="p-caso">' + regs + '</i>' : '') + (citas ? '<i class="p-cita">' + citas + '</i>' : '') + '</span></button>';
     }
     const tareas = DB.agenda.filter(x => x.fecha === st.dia).sort((a, b) => (a.hora || '99').localeCompare(b.hora || '99'));
     const citas = citasDelDia(st.dia);
-    const regs = casosDelDia(st.dia);
+    const regs = registrosDelDia(st.dia);
     const delMes = DB.agenda.filter(x => (x.fecha || '').startsWith(pref));
     el.innerHTML = cabecera('Agenda', { sub: 'Registro diario de tareas y actividades', acciones: boton('informe', 'Informe del mes', 'descargar', 'sec') + boton('nueva', 'Nueva tarea', 'mas') }) +
       '<div class="rejilla-agenda"><section class="panel calendario"><div class="cal-cab">' + botonIcono('mesAnt', 'atras', 'Mes anterior') + '<h2>' + MESES[mes] + ' ' + anio + '</h2>' + botonIcono('mesSig', 'flecha', 'Mes siguiente') + '</div>' +
       '<div class="cal-sem">' + ['L', 'M', 'M', 'J', 'V', 'S', 'D'].map(x => '<span>' + x + '</span>').join('') + '</div><div class="cal-dias">' + celdas + '</div>' +
-      '<p class="cal-ley"><i class="p-tarea"></i> tareas <i class="p-caso"></i> casos y seguimientos registrados <i class="p-cita"></i> seguimientos programados · <b>' + delMes.filter(x => x.hecho).length + '</b> de ' + delMes.length + ' realizadas este mes</p>' +
+      '<p class="cal-ley"><i class="p-tarea"></i> tareas <i class="p-caso"></i> acciones registradas (casos, actividades, actas, cartas, PIAR) <i class="p-cita"></i> seguimientos programados · <b>' + delMes.filter(x => x.hecho).length + '</b> de ' + delMes.length + ' realizadas este mes</p>' +
       (st.dia !== hoy ? boton('hoy', 'Ir a hoy', 'reloj', 'sec chico') : '') + '</section>' +
       '<section class="panel dia-detalle"><div class="panel-cab"><h2>' + esc(DIAS[aFecha(st.dia).getDay()]) + ' ' + fLarga(st.dia) + '</h2><div class="panel-acc">' + boton('nueva', 'Agregar', 'mas', 'chico') + '</div></div>' +
-      (regs.length ? '<ul class="citas registros-caso">' + regs.map(({ c, s }) => { const e = porId('estudiantes', c.estudianteId) || {}; return '<li><a href="#/caso/' + c.id + '">' + ic('casos') + '<span><b>' + (s ? 'Seguimiento realizado' + (s.tipo ? ' (' + esc(s.tipo) + ')' : '') : 'Nuevo caso') + ': ' + esc(e.nombre || '') + '</b><small>' + esc(s ? (s.descripcion || s.acuerdos || '') : etiquetaModalidad(c)) + '</small></span></a></li>'; }).join('') + '</ul>' : '') +
+      (regs.length ? '<ul class="citas registros-caso">' + regs.map(x => '<li><a href="' + x.href + '">' + ic(x.icono) + '<span><b>' + esc(x.titulo) + '</b>' + (x.sub ? '<small>' + esc(x.sub) + '</small>' : '') + '</span></a></li>').join('') + '</ul>' : '') +
       (citas.length ? '<ul class="citas">' + citas.map(({ c, s }) => { const e = porId('estudiantes', c.estudianteId) || {}; return '<li><a href="#/caso/' + c.id + '">' + ic('casos') + '<span><b>Seguimiento: ' + esc(e.nombre || '') + '</b><small>' + esc(s.acuerdos || etiquetaModalidad(c)) + '</small></span></a></li>'; }).join('') + '</ul>' : '') +
       (tareas.length ? '<ul class="tareas">' + tareas.map(t => '<li class="' + (t.hecho ? 'hecha' : '') + '"><label class="check-tarea"><input type="checkbox" data-hecho="' + t.id + '"' + (t.hecho ? ' checked' : '') + '><span class="sr">Realizada</span></label>' +
         '<div class="t-txt"><b>' + (t.hora ? '<time>' + esc(t.hora) + '</time> ' : '') + esc(t.titulo) + '</b>' + (areasDe(t).length ? '<small>' + esc(areasDe(t).join(' · ')) + '</small>' : '') + (t.descripcion ? '<p>' + esc(t.descripcion) + '</p>' : '') +
@@ -3514,21 +3533,34 @@ const camposPIAR = () => [
 const PERIODOS = ['Primer periodo', 'Segundo periodo', 'Tercer periodo', 'Cuarto periodo', 'Final'];
 
 function formPIAR(el, p, estId) {
-  const campos = camposPIAR();
-  if (!DB.estudiantes.length) {
-    el.innerHTML = cabecera('Nuevo PIAR', { volver: '#/piar' }) + vacioHTML('Primero registra al estudiante.', boton('nuevoEst', 'Registrar estudiante', 'mas'));
-    enlazar(el, { nuevoEst: () => editarEstudiante(null, e => { location.hash = '#/piar/nuevo/' + e.id; }) });
-    return;
-  }
+  const campos = camposPIAR(), resto = campos.slice(1);
+  const datos = p || { estudianteId: estId || '' };
+  const hayEst = DB.estudiantes.length > 0, modoIni = hayEst || p ? 'existente' : 'nuevo';
   el.innerHTML = cabecera(p ? 'Editar PIAR' : 'Nuevo PIAR', { volver: p ? '#/piar/' + p.id : '#/piar', sub: 'Plan Individual de Ajustes Razonables · Decreto 1421 de 2017' }) +
-    '<form class="form-caso" novalidate>' + panel('Datos del plan', formHTML(campos, p || { estudianteId: estId || '' })) +
+    '<form class="form-caso" novalidate>' +
+    panel('Estudiante',
+      (hayEst && !p ? '<div class="segmento"><label><input type="radio" name="modoEst" value="existente" checked><span>Ya registrado</span></label><label><input type="radio" name="modoEst" value="nuevo"><span>Estudiante nuevo (solo PIAR)</span></label></div>' : '') +
+      '<div data-modo="existente"' + (modoIni === 'existente' ? '' : ' hidden') + '>' + formHTML(campos.slice(0, 1), datos) + '</div>' +
+      '<div data-modo="nuevo"' + (modoIni === 'nuevo' ? '' : ' hidden') + '>' + formHTML(CAMPOS_ESTUDIANTE) + '</div>') +
+    panel('Datos del plan', formHTML(resto, datos)) +
     '<div class="barra-guardar">' + boton('cancelar', 'Cancelar', '', 'sec') + boton('guardar', 'Guardar PIAR', 'check') + '</div></form>';
+  const form0 = $('form', el);
+  form0.addEventListener('change', e => {
+    if (e.target.name !== 'modoEst') return;
+    $$('[data-modo]', form0).forEach(d => { d.hidden = d.dataset.modo !== e.target.value; });
+  });
+  form0.addEventListener('submit', e => e.preventDefault());
   enlazar(el, {
     cancelar: () => history.back(),
     guardar: () => {
-      const form = $('form', el);
-      if (!validar(form, campos)) return;
-      const n = upsert('piar', leerForm(form, campos, p || { revisiones: [] }));
+      const form = form0;
+      const modo = (($('input[name=modoEst]:checked', form) || {}).value) || modoIni;
+      if (modo === 'nuevo' && !validar($('[data-modo=nuevo]', form), CAMPOS_ESTUDIANTE)) return;
+      if (modo === 'existente' && !$('[name=estudianteId]', form).value) { aviso('Selecciona el estudiante.', 'error'); return; }
+      if (!validar(form, resto)) return;
+      const d = leerForm(form, resto, p || { revisiones: [] });
+      d.estudianteId = modo === 'nuevo' ? upsert('estudiantes', leerForm($('[data-modo=nuevo]', form), CAMPOS_ESTUDIANTE)).id : $('[name=estudianteId]', form).value;
+      const n = upsert('piar', d);
       aviso('PIAR guardado.'); location.hash = '#/piar/' + n.id;
     }
   });
@@ -3870,6 +3902,23 @@ function porArea(d) {
   });
 }
 
+// Relación de estudiantes atendidos (un renglón por caso con gestión en el periodo) y de estudiantes con PIAR.
+function filasAtendidos(d) {
+  const ids = new Set(d.casos.map(c => c.id).concat(d.seguimientos.map(s => s.caso.id)));
+  return DB.casos.filter(c => ids.has(c.id)).sort((a, b) => (a.fechaApertura || '').localeCompare(b.fechaApertura || '')).map(c => {
+    const e = porId('estudiantes', c.estudianteId) || {};
+    return [e.nombre || '', e.grado || '', fCorta(c.fechaApertura), c.modalidad !== 'ruta' || c.fechaActivacion ? 'Sí' : 'No',
+      c.modalidad === 'ruta' ? 'Sí' + (rutaDe(c) ? ' · ' + rutaDe(c).titulo : '') : 'No', String((c.seguimientos || []).length)];
+  });
+}
+const COLS_ATENDIDOS = ['Estudiante', { t: 'Grado', w: '9%' }, { t: 'Apertura del caso', w: '13%' }, { t: 'Orientación', w: '11%' }, { t: 'Ruta activada', w: '20%' }, { t: 'Seguimientos', w: '12%' }];
+function filasPIAR(d) {
+  return d.piar.map(p => { const e = porId('estudiantes', p.estudianteId) || {}; return { e, p }; }).sort((a, b) => (a.e.nombre || '').localeCompare(b.e.nombre || '')).map(({ e, p }) =>
+    [e.nombre || '', e.grado || '', p.condicion || '', fCorta(p.fecha), String((p.revisiones || []).filter(x => enRango(x.fecha, d.desde, d.hasta)).length), DB.casos.some(c => c.estudianteId === e.id) ? 'Sí' : 'No (solo PIAR)']);
+}
+const COLS_PIAR = ['Estudiante', { t: 'Grado', w: '9%' }, 'Condición reportada', { t: 'Elaboración', w: '12%' }, { t: 'Revisiones en el periodo', w: '13%' }, { t: 'Caso en orientación', w: '14%' }];
+const tablaPantalla = (cols, filas) => '<div class="tabla-resp"><table class="tabla"><thead><tr>' + cols.map(c => '<th>' + esc(c.t || c) + '</th>').join('') + '</tr></thead><tbody>' + filas.map(f => '<tr>' + f.map(x => '<td>' + esc(x) + '</td>').join('') + '</tr>').join('') + '</tbody></table></div>';
+
 const textoPeriodo = (desde, hasta) => desde && hasta ? fLarga(desde) + ' a ' + fLarga(hasta) : desde ? 'desde ' + fLarga(desde) : hasta ? 'hasta ' + fLarga(hasta) : 'todo el registro';
 
 async function docInforme(d, { anexos = false, fotos = false } = {}) {
@@ -3882,8 +3931,9 @@ async function docInforme(d, { anexos = false, fotos = false } = {}) {
     h2('1. Gestión por área de función') +
     tabla(['Área', { t: 'Actividades', w: '12%' }, { t: 'Participantes', w: '13%' }, { t: 'Tareas', w: '11%' }, 'Otros registros'],
       porArea(d).map(a => [a.area, String(a.bitacoras), String(a.participantes), a.hechas + '/' + a.tareas, a.extra.join(' · ')]));
-  if (d.casos.length) {
-    h += h2('2. Atención de casos') + '<p>Por modalidad y tipo de situación:</p>' + cuenta(contar(d.casos, c => c.modalidad === 'ruta' ? 'Ruta: ' + (rutaDe(c) ? rutaDe(c).titulo : 'sin tipo') : 'Orientación escolar')) +
+  const atendidos = filasAtendidos(d);
+  if (d.casos.length || atendidos.length) {
+    h += h2('2. Atención de casos') + '<p>Relación de estudiantes atendidos:</p>' + tabla(COLS_ATENDIDOS, atendidos) + '<p>Por modalidad y tipo de situación:</p>' + cuenta(contar(d.casos, c => c.modalidad === 'ruta' ? 'Ruta: ' + (rutaDe(c) ? rutaDe(c).titulo : 'sin tipo') : 'Orientación escolar')) +
       '<p>Estado actual:</p>' + cuenta(contar(d.casos, c => etiquetaEstado(c.estado))) +
       '<p>Por grado:</p>' + cuenta(contar(d.casos, c => { const e = porId('estudiantes', c.estudianteId); return e && e.grado ? 'Grado ' + String(e.grado).split(/[-\s]/)[0] : 'Sin grado'; }));
   }
@@ -3895,8 +3945,7 @@ async function docInforme(d, { anexos = false, fotos = false } = {}) {
     d.bitacora.map(b => [fCorta(b.fecha), b.titulo, b.tipo, b.poblacion, b.numAsistentes || '']));
   if (d.actas.length) h += h2('7. Actas de reunión') + tabla([{ t: 'Fecha', w: '13%' }, { t: 'N.º', w: '9%' }, 'Tipo', 'Objetivo'], d.actas.sort((a, b) => (a.fecha || '').localeCompare(b.fecha || '')).map(a => [fCorta(a.fecha), a.numero, etiquetaActa(a.tipo), a.objetivo]));
   if (d.cartas.length) h += h2('8. Cartas de solicitud') + tabla([{ t: 'Fecha', w: '13%' }, 'Dirigida a', 'Solicitud'], d.cartas.map(k => [fCorta(k.fecha), k.destEntidad, k.tipo]));
-  if (d.piar.length) h += h2('9. Inclusión: PIAR') + tabla(['Estudiante', { t: 'Año', w: '10%' }, { t: 'Revisiones en el periodo', w: '24%' }],
-    d.piar.map(p => { const e = porId('estudiantes', p.estudianteId); return [e ? e.nombre : '', p.anio, String((p.revisiones || []).filter(x => enRango(x.fecha, d.desde, d.hasta)).length)]; }));
+  if (d.piar.length) h += h2('9. Inclusión: PIAR') + '<p>Relación de estudiantes con PIAR:</p>' + tabla(COLS_PIAR, filasPIAR(d));
   h += h2('10. Cumplimiento de los cronogramas') + Object.keys(PLANES).map(k => { const ac = plan(k).meses.flatMap(m => m.acciones), n = ac.filter(a => a.hecho).length;
     return '<p>' + esc(PLANES[k]) + ': ' + n + ' de ' + ac.length + ' actividades cumplidas (' + (ac.length ? Math.round(n / ac.length * 100) : 0) + ' %).</p>'; }).join('') +
     h2('Logros, dificultades y recomendaciones') + caja('', 6) + firmas([firmaOrientacion(), firmaRector()]);
@@ -3934,7 +3983,9 @@ VISTAS.informe = (args, el) => {
       '</div><div class="col">' +
       panel('Gestión por área de función', '<ul class="areas">' + porArea(d).map(a => '<li><b>' + esc(a.area) + '</b><small>' + [a.bitacoras ? a.bitacoras + ' actividades' : '', a.tareas ? a.hechas + '/' + a.tareas + ' tareas' : ''].concat(a.extra).filter(Boolean).join(' · ') + '</small></li>').join('') + '</ul>') +
       panel('Seguimientos por tipo', barras(contar(d.seguimientos, 'tipo'))) +
-      '</div></div>';
+      '</div></div>' +
+      panel('Estudiantes atendidos', (a => a.length ? tablaPantalla(COLS_ATENDIDOS, a) : '<p class="nota">Sin casos en el periodo.</p>')(filasAtendidos(d))) +
+      panel('Estudiantes con PIAR', d.piar.length ? tablaPantalla(COLS_PIAR, filasPIAR(d)) : '<p class="nota">Sin PIAR con gestión en el periodo.</p>');
   };
   el.innerHTML = cabecera('Informe de gestión', { sub: 'Consolida casos, rutas, actividades, actas, cartas y agenda del periodo que elijas',
     acciones: boton('doc', 'Generar informe', 'imprimir') + boton('csv', 'Exportar a Excel', 'descargar', 'sec') }) +
