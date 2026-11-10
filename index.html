@@ -605,6 +605,18 @@ body:not(.sin-sesion) #acceso { display: none; }
 .acceso-pie .ic { width: 16px; height: 16px; }
 .acceso-nota { max-width: 400px; text-align: center; margin: 16px 0 0; }
 @media (max-width: 480px) { .acceso-caja { padding: 22px 18px; } }
+
+/* Estado de la sincronización con la nube */
+.nube { display: flex; align-items: center; gap: 8px; margin: 18px 10px 0; font-size: .8rem; color: var(--tinta-3); }
+.nube:empty { display: none; }
+.col .nube { margin: 4px 0 12px; }
+.nube i { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--tinta-3); }
+.nube-ok i { background: var(--ok); }
+.nube-espera i { background: var(--n1); animation: nube-pulso 1.2s ease-in-out infinite; }
+.nube-error { color: var(--n3); }
+.nube-error i { background: var(--n3); }
+@keyframes nube-pulso { 50% { opacity: .3; } }
+@media (prefers-reduced-motion: reduce) { .nube-espera i { animation: none; } }
 </style>
 </head>
 <body>
@@ -616,6 +628,7 @@ body:not(.sin-sesion) #acceso { display: none; }
       <span><b>Orientación APP</b></span>
     </a>
     <nav id="menu"></nav>
+    <p class="nube" data-nube></p>
   </aside>
   <div class="principal">
     <header class="barra-movil">
@@ -629,6 +642,7 @@ body:not(.sin-sesion) #acceso { display: none; }
 <section id="acceso" aria-label="Ingreso"><p class="nota">Cargando…</p></section>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <script>
 "use strict";
 // ── datos-normas
@@ -1617,7 +1631,7 @@ function cargar() {
 }
 
 function guardar() {
-  try { localStorage.setItem(CLAVE, JSON.stringify(DB)); return true; }
+  try { localStorage.setItem(CLAVE, JSON.stringify(DB)); nubeProgramar(); return true; }
   catch (e) { aviso('No se pudo guardar. El almacenamiento del navegador puede estar lleno: descarga una copia de seguridad.', 'error'); return false; }
 }
 
@@ -1759,6 +1773,237 @@ function descargarArchivo(nombre, contenido, tipo) {
 function aCSV(filas) {
   const celda = v => { const s = v == null ? '' : String(v); return /[",;\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
   return '﻿' + filas.map(f => f.map(celda).join(';')).join('\r\n');
+}
+
+;
+// ── nube
+// Nube: sincroniza los registros con Firestore para verlos en cualquier equipo donde se ingrese con la misma cuenta.
+// Cada registro es un documento en usuarios/{uid}/registros/{coleccion}__{id}; las fotos y adjuntos van en usuarios/{uid}/archivos.
+// Los datos siguen también en este equipo, así la app funciona sin conexión y sube los cambios al volver.
+var NUBE = null;
+var NUBE_PARTE = 900000; // caracteres por documento; Firestore admite hasta 1 MiB
+var NUBE_META = ['ajustes', 'cronoHecho', 'planes'];
+
+function hashTexto(s) {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = (Math.imul(h, 33) ^ s.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36) + '.' + s.length.toString(36);
+}
+
+// Todo lo que se sincroniza, como texto por clave.
+function nubeInstantanea() {
+  const m = {};
+  COLECCIONES.forEach(c => DB[c].forEach(r => { if (r && r.id) m[c + '__' + r.id] = JSON.stringify(r); }));
+  NUBE_META.forEach(k => { m['meta__' + k] = JSON.stringify(DB[k]); });
+  return m;
+}
+
+function nubeLocal(col, id) {
+  if (col === 'meta') return JSON.stringify(DB[id]);
+  const r = porId(col, id);
+  return r ? JSON.stringify(r) : undefined;
+}
+
+const fotosIds = r => (r && Array.isArray(r.fotos) ? r.fotos : []).map(f => f && f.id).filter(Boolean);
+
+function nubeGuardarEstado() {
+  try { localStorage.setItem(NUBE.clave, JSON.stringify(NUBE.estado)); } catch (e) {}
+}
+
+function nubeMostrar(texto, tipo) {
+  if (!NUBE) return;
+  NUBE.texto = texto; NUBE.tipo = tipo;
+  $$('[data-nube]').forEach(el => { el.className = 'nube nube-' + tipo; el.innerHTML = '<i></i><span>' + esc(texto) + '</span>'; });
+}
+
+// Estado actual para pintarlo dentro de una vista.
+function nubeHtml() {
+  return NUBE && NUBE.texto ? '<p class="nube nube-' + NUBE.tipo + '" data-nube><i></i><span>' + esc(NUBE.texto) + '</span></p>' : '<p class="nube" data-nube></p>';
+}
+
+function nubeFallo(err) {
+  console.warn('Nube:', err);
+  const c = (err && err.code) || '', m = (err && err.message) || '';
+  if (c === 'permission-denied') nubeMostrar('Sin permiso en la nube: revisa las reglas de Firestore', 'error');
+  else if (c === 'not-found' || /database|does not exist/i.test(m)) nubeMostrar('La nube aún no está activada', 'error');
+  else if (!navigator.onLine || c === 'unavailable') nubeMostrar('Sin conexión: los cambios se suben al volver', 'espera');
+  else nubeMostrar('No se pudo sincronizar', 'error');
+}
+
+function nubeIniciar(uidUsuario) {
+  NUBE = { ref: null, arch: null, fs: null, listo: false, timer: 0, subiendo: false, otraVez: false, texto: '', tipo: '', clave: CLAVE + '.nube', estado: null };
+  try { NUBE.estado = JSON.parse(localStorage.getItem(NUBE.clave)); } catch (e) {}
+  if (!NUBE.estado || !NUBE.estado.h) NUBE.estado = { h: {}, f: {} };
+  if (!NUBE.estado.f) NUBE.estado.f = {};
+  if (!window.firebase || !firebase.firestore) { nubeMostrar('Guardado solo en este equipo', 'error'); return; }
+  try {
+    NUBE.fs = firebase.firestore();
+    const base = NUBE.fs.collection('usuarios').doc(uidUsuario);
+    NUBE.ref = base.collection('registros');
+    NUBE.arch = base.collection('archivos');
+  } catch (e) { nubeFallo(e); return; }
+  nubeMostrar('Conectando con la nube…', 'espera');
+  nubeEscuchar();
+  window.addEventListener('online', () => { if (NUBE.listo) nubeProgramar(300); });
+  window.addEventListener('offline', () => nubeMostrar('Sin conexión: los cambios se suben al volver', 'espera'));
+  setTimeout(() => { if (!NUBE.listo && navigator.onLine && NUBE.tipo === 'espera') nubeMostrar('No se pudo conectar con la nube', 'error'); }, 20000);
+}
+
+function nubeEscuchar() {
+  NUBE.ref.onSnapshot({ includeMetadataChanges: true }, nubeRecibir, err => {
+    nubeFallo(err);
+    setTimeout(nubeEscuchar, 60000);
+  });
+}
+
+function nubeRecibir(snap) {
+  const faltan = new Map();
+  let tocado = false;
+  snap.docChanges().forEach(c => {
+    if (c.type === 'removed' || c.doc.metadata.hasPendingWrites) return;
+    if (nubeAplicar(c.doc.id, c.doc.data(), faltan)) tocado = true;
+  });
+  if (tocado) { guardar(); nubeRepintar(); }
+  nubeGuardarEstado();
+  if (snap.metadata.fromCache) return;
+  if (!NUBE.listo) {
+    NUBE.listo = true;
+    // Fotos de registros ya sincronizados que aún no están en este equipo.
+    COLECCIONES.forEach(col => DB[col].forEach(r => fotosIds(r).forEach(id => { if (!faltan.has(id)) faltan.set(id, col + '__' + r.id); })));
+    nubeProgramar(0);
+  } else if (!NUBE.subiendo && !NUBE.timer) nubeMostrar('Sincronizado', 'ok');
+  if (faltan.size) nubeBajarArchivos(faltan);
+}
+
+// Aplica un documento de la nube. Devuelve true si cambió algo en este equipo.
+function nubeAplicar(k, d, faltan) {
+  const i = k.indexOf('__');
+  if (i < 0) return false;
+  const col = k.slice(0, i), id = k.slice(i + 2);
+  if (col === 'meta' ? !NUBE_META.includes(id) : !COLECCIONES.includes(col)) return false;
+  const remoto = d.borrado ? '-' : (typeof d.data === 'string' && d.data ? d.data : null);
+  if (remoto === null) return false;
+  const hr = remoto === '-' ? '-' : hashTexto(remoto);
+  const base = NUBE.estado.h[k] || '-';
+  if (hr === base) return false;
+  const actual = nubeLocal(col, id);
+  const hl = actual === undefined ? '-' : hashTexto(actual);
+  NUBE.estado.h[k] = hr;
+  if (hl === hr) return false;
+  const sucio = hl !== base; // también cambió en este equipo sin haberse subido
+  let r;
+  try { r = remoto === '-' ? null : JSON.parse(remoto); } catch (e) { return false; }
+
+  if (col === 'meta') {
+    if (id === 'ajustes') {
+      // Gana lo que venga lleno de la nube; lo vacío conserva lo de este equipo.
+      Object.entries(r || {}).forEach(([c, v]) => { if (!sucio || (v !== '' && v != null)) DB.ajustes[c] = v; });
+    } else DB[id] = sucio ? Object.assign({}, r, DB[id]) : (r || {});
+    return true;
+  }
+  if (sucio && actual !== undefined) {
+    if (!r) return false; // se editó aquí después de borrarse allá: se conserva y se vuelve a subir
+    const l = JSON.parse(actual);
+    if ((l.actualizado || '') > (r.actualizado || '')) return false; // lo de aquí es más reciente
+  }
+  const pos = DB[col].findIndex(x => x.id === id);
+  if (!r) {
+    if (pos >= 0) { fotosIds(DB[col][pos]).forEach(f => { Fotos.borrar(f); delete NUBE.estado.f[f]; }); DB[col].splice(pos, 1); }
+  } else {
+    if (pos >= 0) DB[col][pos] = r; else DB[col].push(r);
+    fotosIds(r).forEach(f => faltan.set(f, k));
+  }
+  return true;
+}
+
+function nubeRepintar() {
+  if (typeof refrescar !== 'function' || !$('#vista')) return;
+  const a = document.activeElement;
+  if (document.querySelector('dialog[open]') || (a && a.closest && a.closest('#vista') && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) return;
+  refrescar();
+}
+
+function nubeProgramar(ms) {
+  if (!NUBE || !NUBE.ref) return;
+  clearTimeout(NUBE.timer);
+  NUBE.timer = setTimeout(() => { NUBE.timer = 0; nubeSubir(); }, ms == null ? 1500 : ms);
+}
+
+async function nubeSubir() {
+  if (!NUBE.listo) return;
+  if (NUBE.subiendo) { NUBE.otraVez = true; return; }
+  const local = nubeInstantanea(), h = NUBE.estado.h, cambios = [];
+  for (const k in local) { const hh = hashTexto(local[k]); if (h[k] !== hh) cambios.push([k, local[k], hh]); }
+  for (const k in h) if (!(k in local) && h[k] !== '-') cambios.push([k, null, '-']);
+  if (!cambios.length) { nubeMostrar('Sincronizado', 'ok'); return; }
+  NUBE.subiendo = true;
+  nubeMostrar('Guardando en la nube…', 'espera');
+  const previo = {};
+  cambios.forEach(([k]) => { previo[k] = h[k]; });
+  let grande = 0;
+  try {
+    await nubeSubirArchivos(cambios);
+    const t = Date.now();
+    for (let i = 0; i < cambios.length; i += 200) {
+      const lote = NUBE.fs.batch();
+      cambios.slice(i, i + 200).forEach(([k, txt, hh]) => {
+        if (txt && txt.length > NUBE_PARTE) { grande++; return; }
+        lote.set(NUBE.ref.doc(k), txt ? { data: txt, t, borrado: false } : { data: '', t, borrado: true });
+        h[k] = hh;
+      });
+      await lote.commit();
+    }
+    nubeGuardarEstado();
+    if (grande) nubeMostrar(grande + ' registro(s) demasiado grandes para la nube', 'error');
+    else nubeMostrar('Sincronizado', 'ok');
+  } catch (err) {
+    cambios.forEach(([k]) => { if (previo[k] === undefined) delete h[k]; else h[k] = previo[k]; });
+    nubeFallo(err);
+  }
+  NUBE.subiendo = false;
+  if (NUBE.otraVez) { NUBE.otraVez = false; nubeProgramar(300); }
+}
+
+// Sube las fotos y adjuntos nuevos de los registros que cambiaron y borra los que ya no se usan.
+async function nubeSubirArchivos(cambios) {
+  const f = NUBE.estado.f;
+  for (const [k, txt] of cambios) {
+    if (k.startsWith('meta__')) continue;
+    const ids = txt ? fotosIds(JSON.parse(txt)) : [];
+    for (const id of ids) {
+      if (f[id]) continue;
+      const data = await Fotos.obtener(id);
+      if (!data) continue;
+      const n = Math.max(1, Math.ceil(data.length / NUBE_PARTE));
+      for (let i = 0; i < n; i++) await NUBE.arch.doc(i ? id + '~' + i : id).set({ d: data.slice(i * NUBE_PARTE, (i + 1) * NUBE_PARTE), n });
+      f[id] = { k, n };
+    }
+    for (const id of Object.keys(f)) {
+      if (f[id].k !== k || ids.includes(id)) continue;
+      const lote = NUBE.fs.batch();
+      for (let i = 0; i < (f[id].n || 1); i++) lote.delete(NUBE.arch.doc(i ? id + '~' + i : id));
+      await lote.commit();
+      delete f[id];
+    }
+  }
+}
+
+async function nubeBajarArchivos(faltan) {
+  let alguno = false;
+  for (const [id, k] of faltan) {
+    try {
+      if (await Fotos.obtener(id)) continue;
+      const d0 = await NUBE.arch.doc(id).get();
+      if (!d0.exists) continue;
+      const n = d0.data().n || 1;
+      let data = d0.data().d || '';
+      for (let i = 1; i < n; i++) { const di = await NUBE.arch.doc(id + '~' + i).get(); data += di.exists ? di.data().d : ''; }
+      await Fotos.poner(id, data);
+      NUBE.estado.f[id] = { k, n };
+      alguno = true;
+    } catch (e) { console.warn('Nube: no se pudo bajar el archivo', id, e); }
+  }
+  if (alguno) { nubeGuardarEstado(); nubeRepintar(); }
 }
 
 ;
@@ -1952,7 +2197,7 @@ function montarFotos(cont, fotos, categorias) {
           '<label class="btn sec chico subir-doc">' + ic('subir') + '<span>Agregar documento</span><input type="file" accept="' + DOCS_ACEPTADOS + '" multiple data-cat="doc" hidden></label>'
         : '<div class="fotos-rejilla">' + items.map(f => '<figure class="miniatura" data-fid="' + f.id + '"><img alt="" data-src="' + f.id + '">' + quitar(f) + '</figure>').join('') +
           '<label class="subir-foto">' + ic('foto') + '<span>Agregar</span><input type="file" accept="image/*" multiple data-cat="' + cat + '" hidden></label></div>') + '</div>';
-    }).join('') + '<p class="nota">Las fotos se guardan reducidas en este navegador. Tómalas desde el celular o súbelas desde el computador.' +
+    }).join('') + '<p class="nota">Las fotos se guardan reducidas y se sincronizan con tu cuenta. Tómalas desde el celular o súbelas desde el computador.' +
       (categorias.some(([c]) => c === 'doc') ? ' Documentos: PDF, Word, Excel, PowerPoint o imágenes, hasta ' + MAX_DOC_MB + ' MB cada uno.' : '') + '</p>';
     $$('img[data-src]', cont).forEach(async img => { img.src = await Fotos.obtener(img.dataset.src); });
   };
@@ -1996,7 +2241,7 @@ const adjuntosLista = docs => '<ul class="adjuntos">' + docs.map(f => '<li><butt
 async function abrirAdjunto(f) {
   if (!f) return;
   const data = await Fotos.obtener(f.id);
-  if (!data) return aviso('No se encontró el archivo en este navegador.', 'error');
+  if (!data) return aviso('El archivo aún no está en este equipo. Si lo subiste desde otro, espera a que termine de sincronizar.', 'error');
   descargarArchivo(f.nombre || 'documento', await (await fetch(data)).blob());
 }
 
@@ -2079,7 +2324,7 @@ function menuDocumentos(titulo, lista) {
 
 ;
 // ── cuenta
-// Cuenta: registro e ingreso con Firebase Authentication. Los casos no se suben: siguen solo en este navegador.
+// Cuenta: registro e ingreso con Firebase Authentication. Los registros se sincronizan con la cuenta en nube.js.
 const FIREBASE_CONFIG = {
   apiKey: 'AIzaSyBfP9yeB90UrGYokNnwBaQRdx1jdh_6aCA',
   authDomain: 'orientacion-app.firebaseapp.com',
@@ -2107,7 +2352,7 @@ const ERRORES_CUENTA = {
 function cajaAcceso(titulo, sub, cuerpo) {
   return '<div class="acceso-caja"><div class="marca">' + ic('brujula') + '<span><b>Orientación APP</b></span></div>' +
     '<h1>' + esc(titulo) + '</h1><p class="sub">' + esc(sub) + '</p>' + cuerpo + '</div>' +
-    '<p class="nota acceso-nota">Los casos y registros se guardan solo en tu equipo. La cuenta sirve para entrar, no para subir información.</p>';
+    '<p class="nota acceso-nota">Tus casos y registros se guardan en tu cuenta: entra con el mismo correo en cualquier equipo y verás la misma información.</p>';
 }
 
 function pintarAcceso(modo = 'ingresar', ok = '') {
@@ -4079,7 +4324,7 @@ VISTAS.inicio = (args, el) => {
 
   el.innerHTML = '<header class="pagina-cab inicio-cab"><p class="fecha-hoy">' + esc(DIAS[d.getDay()]) + ', ' + fLarga(hoy) + '</p><h1>' + esc(saludo + (nombre ? ', ' + nombre : '')) + '</h1></header>' +
     (!DB.ajustes.institucion ? '<div class="banda">' + ic('ajustes') + '<p><b>Configura tu institución.</b> El nombre del colegio, tu nombre y el del rector aparecerán en todos los formatos.</p><a class="btn sec chico" href="#/ajustes">Configurar</a></div>' : '') +
-    (pideRespaldo ? '<div class="banda alerta">' + ic('alerta') + '<p><b>' + (resp ? 'Tu última copia de seguridad es del ' + fCorta(resp) + '.' : 'Aún no tienes copia de seguridad.') + '</b> La información vive solo en este navegador: descarga una copia y guárdala en tu correo o en Drive.</p>' + boton('respaldo', 'Descargar copia', 'descargar', 'chico') + '</div>' : '') +
+    (pideRespaldo ? '<div class="banda alerta">' + ic('alerta') + '<p><b>' + (resp ? 'Tu última copia de seguridad es del ' + fCorta(resp) + '.' : 'Aún no tienes copia de seguridad.') + '</b> Tus datos se guardan en tu cuenta; una copia descargada te protege si algo falla.</p>' + boton('respaldo', 'Descargar copia', 'descargar', 'chico') + '</div>' : '') +
     '<div class="accesos">' +
     '<a class="acceso" href="#/nuevo-caso/orientacion">' + ic('usuario') + '<b>Orientación escolar</b><small>Registrar un caso</small></a>' +
     '<a class="acceso alerta" href="#/nuevo-caso/ruta">' + ic('activar') + '<b>Activar ruta</b><small>Situación tipo II, III o especial</small></a>' +
@@ -4133,14 +4378,14 @@ VISTAS.ajustes = (args, el) => {
       '<div class="form-acc">' + boton('guardar', 'Guardar', 'check') + boton('muestra', 'Ver un formato de muestra', 'formatos', 'sec') + '</div></form>') +
     '</div><div class="col">' +
     panel('Tu cuenta', datosDL([['Nombre', USUARIO.displayName || nombreNuevo || '—'], ['Correo', USUARIO.email]]) + '<div class="form-acc">' + boton('salir', 'Cerrar sesión', 'cerrar', 'sec') + '</div>') +
-    panel('Copia de seguridad', '<p>Todo lo que registras se guarda <b>solo en este navegador y en este equipo</b>. No se envía a internet. Si borras el historial del navegador o cambias de equipo, lo pierdes, salvo que tengas una copia.</p>' +
+    panel('Copia de seguridad', '<p>Todo lo que registras se guarda <b>en este equipo y en tu cuenta en la nube</b>. Al entrar con el mismo correo en otro equipo o en el celular verás la misma información, incluidas fotos y documentos.</p>' + nubeHtml() +
       datosDL([['Registros guardados', String(total)], ['Última copia', a.ultimoRespaldo ? fLarga(a.ultimoRespaldo) : 'Nunca']]) +
       '<div class="form-acc">' + boton('exportar', 'Descargar copia', 'descargar') + '<label class="btn sec">' + ic('subir') + '<span>Restaurar una copia</span><input type="file" accept=".json,application/json" name="respaldoArchivo" hidden></label></div>' +
-      '<p class="nota">Para usar la aplicación en otro equipo: descarga la copia aquí y restáurala allá. La copia incluye las fotos.</p>') +
+      '<p class="nota">La copia descargada incluye las fotos y sirve como respaldo adicional. Al restaurarla, el cambio se refleja en todos tus equipos.</p>') +
     panel('Confidencialidad', '<ul class="lista-simple"><li><b>Usa un equipo personal con contraseña.</b><small>La información de los casos es reservada (Ley 1098 de 2006, Ley 1581 de 2012 y Ley 1090 de 2006).</small></li>' +
       '<li><b>Guarda las copias en un lugar protegido.</b><small>El archivo de respaldo contiene los datos de los estudiantes sin cifrar.</small></li>' +
       '<li><b>Los documentos impresos van al archivo de orientación.</b><small>No los dejes en carpetas compartidas ni en el correo institucional abierto.</small></li></ul>') +
-    panel('Borrar todo', '<p>Elimina de este navegador todos los estudiantes, casos, registros y fotos. Descarga antes una copia.</p>' + boton('borrarTodo', 'Borrar toda la información', 'borrar', 'peligro'), '', 'panel-alerta') +
+    panel('Borrar todo', '<p>Elimina de tu cuenta, en todos tus equipos, todos los estudiantes, casos, registros y fotos. Descarga antes una copia.</p>' + boton('borrarTodo', 'Borrar toda la información', 'borrar', 'peligro'), '', 'panel-alerta') +
     '</div></div>';
   const form = $('.form-ajustes', el);
   form.onsubmit = e => e.preventDefault();
@@ -4150,7 +4395,7 @@ VISTAS.ajustes = (args, el) => {
     }
     if (e.target.name === 'respaldoArchivo' && e.target.files[0]) {
       const archivo = e.target.files[0]; e.target.value = '';
-      if (!(await confirmar('Restaurar la copia reemplaza toda la información actual de este navegador. ¿Continuar?', 'Restaurar'))) return;
+      if (!(await confirmar('Restaurar la copia reemplaza toda la información actual de tu cuenta, también en tus otros equipos. ¿Continuar?', 'Restaurar'))) return;
       try { await importarRespaldo(await archivo.text()); pintarMenu(); aviso('Copia restaurada.'); location.hash = '#/inicio'; }
       catch (err) { aviso(err.message.includes('respaldo') ? err.message : 'El archivo no se pudo leer como copia de seguridad.', 'error'); }
     }
@@ -4162,7 +4407,7 @@ VISTAS.ajustes = (args, el) => {
     salir: () => cerrarSesion(),
     exportar: async () => { await exportarRespaldo(); aviso('Copia descargada.'); refrescar(); },
     borrarTodo: async () => {
-      if (!(await confirmar('Se borrará toda la información de este navegador. Esta acción no se puede deshacer.', 'Borrar todo'))) return;
+      if (!(await confirmar('Se borrará toda la información de tu cuenta, en todos tus equipos. Esta acción no se puede deshacer.', 'Borrar todo'))) return;
       COLECCIONES.forEach(k => { DB[k] = []; }); DB.cronoHecho = {}; DB.planes = {};
       await Fotos.vaciar(); guardar(); aviso('Información borrada.'); location.hash = '#/inicio';
     }
@@ -4176,6 +4421,7 @@ iniciarSesion(user => {
   const nombre = user.displayName || nombreNuevo;
   if (!DB.ajustes.orientadora && nombre) { DB.ajustes.orientadora = nombre; guardar(); }
   pintarMenu();
+  nubeIniciar(user.uid);
   $('#abrir-menu').onclick = () => document.body.classList.add('menu-abierto');
   $('#velo').onclick = () => document.body.classList.remove('menu-abierto');
   window.addEventListener('hashchange', () => navegar(false));
