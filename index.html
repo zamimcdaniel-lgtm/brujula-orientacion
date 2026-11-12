@@ -1568,6 +1568,16 @@ function plan(clave) {
   return DB.planes[clave];
 }
 
+// Actividades permanentes (todo el año): van en una entrada aparte de los meses, creada al guardar la primera.
+const MES_PERMANENTE = 'Permanente (todo el año)';
+function mesPermanente(P, crear) {
+  let i = P.meses.findIndex(m => m.permanente);
+  if (i < 0 && crear) { P.meses.push({ mes: MES_PERMANENTE, foco: '', acciones: [], permanente: true }); i = P.meses.length - 1; }
+  return i;
+}
+// Meses con lo permanente primero; conserva el índice real de cada uno.
+const mesesEnOrden = P => P.meses.map((m, i) => ({ m, i })).sort((a, b) => (b.m.permanente ? 1 : 0) - (a.m.permanente ? 1 : 0));
+
 const todasAcciones = () => Object.keys(PLANES).flatMap(k => plan(k).meses.flatMap((m, mi) => m.acciones.map(a => ({ k, mi, a }))));
 const buscarAccion = id => todasAcciones().find(x => x.a.id === id);
 
@@ -1590,8 +1600,8 @@ function cumpleHTML(sel, fecha) {
   const mi = fecha ? aFecha(fecha).getMonth() : new Date().getMonth();
   return '<details class="cumple full"' + (sel.length ? ' open' : '') + '><summary>Cumple actividades del cronograma' + (sel.length ? ' (' + sel.length + ')' : '') + '</summary>' +
     '<p class="hint">Marca las actividades planeadas que se cumplen con este registro. Quedarán como cumplidas en el cronograma.</p>' +
-    Object.keys(PLANES).map(k => '<fieldset><legend>' + esc(PLANES_CORTO[k]) + '</legend>' + plan(k).meses.map((m, i) => m.acciones.length ?
-      '<details class="cumple-mes"' + (i === mi || m.acciones.some(a => sel.includes(a.id)) ? ' open' : '') + '><summary>' + esc(m.mes) + '</summary>' +
+    Object.keys(PLANES).map(k => '<fieldset><legend>' + esc(PLANES_CORTO[k]) + '</legend>' + mesesEnOrden(plan(k)).map(({ m, i }) => m.acciones.length ?
+      '<details class="cumple-mes"' + (i === mi || m.permanente || m.acciones.some(a => sel.includes(a.id)) ? ' open' : '') + '><summary>' + esc(m.mes) + '</summary>' +
       m.acciones.map(a => '<label class="campo-check"><input type="checkbox" name="cumple" value="' + esc(a.id) + '"' + (sel.includes(a.id) ? ' checked' : '') + '><span>' + esc(a.t) + (a.hecho && !sel.includes(a.id) ? ' <small>· ya cumplida</small>' : '') + '</span></label>').join('') + '</details>' : '').join('') + '</fieldset>').join('') +
     '</details>';
 }
@@ -2799,7 +2809,7 @@ function docPOA(clave) {
   SECCIONES_PLAN.forEach(([k, l]) => { if (!vacio(P[k])) h += h2(etiquetaSeccion(clave, k, l)) + parrafos(P[k]); });
   if (P.proyectos.length) h += h2('Proyectos') + tabla([{ t: 'Proyecto', w: '28%' }, 'Descripción breve de las actividades'], P.proyectos.map(x => [x.nombre, x.descripcion]));
   h += h2('Cronograma de actividades');
-  P.meses.forEach(m => {
+  mesesEnOrden(P).forEach(({ m }) => {
     if (!m.acciones.length) return;
     h += '<h3>' + esc(m.mes + (m.foco ? ' · ' + m.foco : '')) + '</h3>' + tabla([{ t: 'Componente', w: '13%' }, { t: 'Áreas de gestión', w: '20%' }, 'Actividad', { t: 'Fecha', w: '11%' }, { t: 'Responsable', w: '14%' }, { t: 'Cumplida', w: '9%' }],
       m.acciones.map(a => [a.c, (a.areas || []).join(', '), a.t, fCorta(a.fecha), a.responsable || '', { html: '<span class="cuadro' + (a.hecho ? ' si' : '') + '"></span>' }]));
@@ -2869,6 +2879,7 @@ const CAMPOS_ESTUDIANTE = [
   { k: 'telefono', label: 'Teléfono', tipo: 'tel' },
   { k: 'direccion', label: 'Dirección' },
   { k: 'eps', label: 'EPS o régimen de salud' },
+  { k: 'remisionSalud', label: '¿Se remitió a servicios de salud?', tipo: 'select', ops: [['', 'Sin dato'], ['si', 'Sí'], ['no', 'No']] },
   { k: 'condiciones', label: 'Condiciones relevantes', tipo: 'textarea', filas: 2, hint: 'Discapacidad, diagnósticos reportados por la familia, medicación, medidas de protección vigentes…' },
   { k: 'notas', label: 'Notas', tipo: 'textarea', filas: 2 }
 ];
@@ -3004,7 +3015,7 @@ VISTAS.estudiante = ([id], el) => {
     (actas.length ? panel('Actas relacionadas', '<ul class="lista-simple">' + actas.map(a => '<li><a href="#" data-act="acta" data-id="' + a.id + '">' + esc(etiquetaActa(a.tipo)) + '</a><small>' + fCorta(a.fecha) + '</small></li>').join('') + '</ul>') : '') +
     '</div><div class="col">' +
     panel('Datos del estudiante', datosDL([['Documento', e.documento], ['Fecha de nacimiento', e.fechaNac ? fCorta(e.fechaNac) : ''], ['Acudiente', e.acudiente ? e.acudiente + (e.parentesco ? ' (' + e.parentesco + ')' : '') : ''],
-      ['Teléfono', e.telefono ? { html: '<a href="tel:' + esc(e.telefono) + '">' + esc(e.telefono) + '</a>' } : ''], ['Dirección', e.direccion], ['EPS', e.eps]]) +
+      ['Teléfono', e.telefono ? { html: '<a href="tel:' + esc(e.telefono) + '">' + esc(e.telefono) + '</a>' } : ''], ['Dirección', e.direccion], ['EPS', e.eps], ['Remisión a salud', { si: 'Sí', no: 'No' }[e.remisionSalud] || '']]) +
       bloqueTexto('Condiciones relevantes', e.condiciones) + bloqueTexto('Notas', e.notas)) +
     panel('Zona de cuidado', '<p class="nota">Borrar al estudiante elimina también sus casos y PIAR. Haz una copia de seguridad antes.</p>' + boton('borrar', 'Borrar estudiante', 'borrar', 'peligro sec chico')) +
     '</div></div>';
@@ -4022,9 +4033,9 @@ VISTAS.cronograma = ([clave], el) => {
   clave = PLANES[clave] ? clave : 'orientacion';
   const P = plan(clave);
   const mesActual = new Date().getMonth();
-  const abiertos = new Set([mesActual]);
+  const abiertos = new Set([String(mesActual)]);
   const pinta = () => {
-    const acciones = P.meses.flatMap(m => m.acciones);
+    const acciones = P.meses.flatMap(m => m.acciones), pi = mesPermanente(P);
     const hechas = acciones.filter(a => a.hecho).length, total = acciones.length;
     const secciones = SECCIONES_PLAN.map(([k, l]) => bloqueTexto(etiquetaSeccion(clave, k, l), P[k])).join('');
     el.innerHTML = cabecera('Cronograma anual ' + (P.anio || ''), { sub: esc(PLANES[clave]) + '. Todo es editable: ajústalo a tu institución y al calendario de tu secretaría de educación.',
@@ -4034,19 +4045,19 @@ VISTAS.cronograma = ([clave], el) => {
       '<div class="rejilla-2 plan-cab"><div class="col">' + panel('Propósitos, compromisos y metas', secciones || vacioHTML('Escribe los propósitos, compromisos, metas de calidad, estrategias metodológicas y salidas pedagógicas.', boton('plan', 'Completar', 'editar', 'chico')), secciones ? botonIcono('plan', 'editar', 'Editar') : '') + '</div>' +
       '<div class="col">' + panel('Proyectos', P.proyectos.length ? '<ul class="proyectos">' + P.proyectos.map(x => '<li><div class="t-txt"><b>' + esc(x.nombre) + '</b>' + parrafos(x.descripcion) + '</div><div class="fr-acc">' + botonIcono('editarProy', 'editar', 'Editar', x.id) + botonIcono('borrarProy', 'borrar', 'Borrar', x.id) + '</div></li>').join('') + '</ul>'
         : vacioHTML('Agrega los proyectos del ' + (clave === 'pescc' ? 'proyecto transversal' : 'área') + ' con una descripción breve de sus actividades.'), boton('nuevoProy', 'Agregar', 'mas', 'chico')) + '</div></div>' +
-      '<div class="meses">' + P.meses.map((m, mi) => {
-        const ok = m.acciones.filter(a => a.hecho).length;
-        return '<details class="mes' + (mi === mesActual ? ' actual' : '') + '" data-mes="' + mi + '"' + (abiertos.has(mi) ? ' open' : '') + '><summary><span class="mes-nom">' + esc(m.mes) + '</span><span class="mes-foco">' + esc(m.foco || '') + '</span><span class="mes-cuenta">' + ok + '/' + m.acciones.length + '</span></summary>' +
+      '<div class="meses">' + [[pi >= 0 ? P.meses[pi] : { mes: MES_PERMANENTE, foco: '', acciones: [], permanente: true }, pi]].concat(P.meses.map((m, mi) => [m, mi]).filter(x => !x[0].permanente)).map(([m, mi]) => {
+        const ok = m.acciones.filter(a => a.hecho).length, key = m.permanente ? 'perm' : String(mi);
+        return '<details class="mes' + (mi === mesActual ? ' actual' : '') + (m.permanente ? ' permanente' : '') + '" data-mes="' + key + '"' + (abiertos.has(key) ? ' open' : '') + '><summary><span class="mes-nom">' + esc(m.permanente ? 'Permanente' : m.mes) + '</span><span class="mes-foco">' + esc(m.permanente ? 'Actividades de todo el año' : m.foco || '') + '</span><span class="mes-cuenta">' + ok + '/' + m.acciones.length + '</span></summary>' +
           '<ul>' + m.acciones.map(a => {
             const regs = registrosDeAccion(a.id);
             return '<li><label><input type="checkbox" data-crono="' + esc(a.id) + '"' + (a.hecho ? ' checked' : '') + '><span>' + esc(a.t) +
               '<small>' + esc([a.c, (a.areas || []).join(' · '), a.fecha ? fCorta(a.fecha) : '', a.responsable].filter(Boolean).join(' · ')) + '</small>' +
               (regs.length ? '<small class="evid">' + ic('check') + esc(regs.join(' | ')) + '</small>' : '') + '</span></label>' +
               '<div class="fr-acc">' + botonIcono('editarAcc', 'editar', 'Editar actividad', a.id) + botonIcono('borrarAcc', 'borrar', 'Borrar actividad', a.id) + '</div></li>';
-          }).join('') + '</ul><div class="acciones-mes">' + boton('nuevaAcc', 'Agregar actividad', 'mas', 'sec chico', mi) + boton('foco', 'Editar tema del mes', 'editar', 'sec chico', mi) + '</div></details>';
+          }).join('') + '</ul><div class="acciones-mes">' + boton('nuevaAcc', 'Agregar actividad', 'mas', 'sec chico', key) + (m.permanente ? '' : boton('foco', 'Editar tema del mes', 'editar', 'sec chico', mi)) + '</div></details>';
       }).join('') + '</div>';
   };
-  const repinta = extra => { abiertos.clear(); $$('.mes[open]', el).forEach(d => abiertos.add(Number(d.dataset.mes))); if (extra != null) abiertos.add(extra); pinta(); };
+  const repinta = extra => { abiertos.clear(); $$('.mes[open]', el).forEach(d => abiertos.add(d.dataset.mes)); if (extra != null) abiertos.add(String(extra)); pinta(); };
   const editarProyecto = x => {
     const campos = [{ k: 'nombre', label: 'Nombre del proyecto', req: true, full: true }, { k: 'descripcion', label: 'Descripción breve de las actividades', tipo: 'textarea', filas: 4, full: true }];
     abrirModal({ titulo: x ? 'Editar proyecto' : 'Nuevo proyecto', cuerpo: formHTML(campos, x || {}), acciones: [{ txt: 'Cancelar', cls: 'sec' }, { txt: 'Guardar', icono: 'check', fn: r => {
@@ -4060,7 +4071,7 @@ VISTAS.cronograma = ([clave], el) => {
   const editarAccion = (mi, u) => {
     const a = u ? u.a : null;
     const campos = [
-      { k: 'mes', label: 'Mes', tipo: 'select', ops: P.meses.map((m, i) => [String(i), m.mes]) },
+      { k: 'mes', label: 'Mes o duración', tipo: 'select', ops: [['perm', MES_PERMANENTE]].concat(P.meses.map((m, i) => [String(i), m.mes]).filter((x, i) => !P.meses[i].permanente)) },
       { k: 'c', label: 'Componente', tipo: 'select', ops: COMPONENTES_CRONO },
       { k: 't', label: 'Actividad', tipo: 'textarea', filas: 2, req: true, full: true },
       { k: 'fecha', label: 'Fecha prevista', tipo: 'date' },
@@ -4068,14 +4079,15 @@ VISTAS.cronograma = ([clave], el) => {
       { k: 'areas', label: 'Áreas de gestión', tipo: 'checks', ops: AREAS_GESTION },
       { k: 'hecho', label: 'Cumplida', tipo: 'check' }
     ];
-    abrirModal({ titulo: a ? 'Editar actividad' : 'Nueva actividad', cuerpo: formHTML(campos, Object.assign({ c: 'Promoción' }, a, { mes: String(mi) })), acciones: [{ txt: 'Cancelar', cls: 'sec' }, { txt: 'Guardar', icono: 'check', fn: r => {
+    abrirModal({ titulo: a ? 'Editar actividad' : 'Nueva actividad', cuerpo: formHTML(campos, Object.assign({ c: 'Promoción' }, a, { mes: mi === 'perm' || (P.meses[mi] && P.meses[mi].permanente) ? 'perm' : String(mi) })), acciones: [{ txt: 'Cancelar', cls: 'sec' }, { txt: 'Guardar', icono: 'check', fn: r => {
       if (!validar(r, campos)) return false;
       const n = leerForm(r, campos, Object.assign({}, a || { id: uid() }));
-      const destino = Number(n.mes); delete n.mes;
-      if (a) P.meses[mi].acciones.splice(u.pos, 1);
+      const clave = n.mes; delete n.mes;
+      if (a) P.meses[u.mi].acciones.splice(u.pos, 1);
+      const destino = clave === 'perm' ? mesPermanente(P, true) : Number(clave);
       const lista = P.meses[destino].acciones;
-      if (a && destino === mi) lista.splice(u.pos, 0, n); else lista.push(n);
-      guardar(); repinta(destino);
+      if (a && destino === u.mi) lista.splice(u.pos, 0, n); else lista.push(n);
+      guardar(); repinta(clave);
     } }] });
   };
   el.onchange = e => {
@@ -4094,7 +4106,7 @@ VISTAS.cronograma = ([clave], el) => {
     nuevoProy: () => editarProyecto(null),
     editarProy: id => editarProyecto(P.proyectos.find(x => x.id === id)),
     borrarProy: async id => { if (await confirmar('¿Borrar este proyecto?', 'Borrar')) { P.proyectos = P.proyectos.filter(x => x.id !== id); guardar(); repinta(); } },
-    nuevaAcc: mi => editarAccion(Number(mi), null),
+    nuevaAcc: mi => editarAccion(mi === 'perm' ? 'perm' : Number(mi), null),
     editarAcc: id => { const u = ubicar(id); if (u) editarAccion(u.mi, u); },
     borrarAcc: async id => { const u = ubicar(id); if (u && await confirmar('¿Borrar esta actividad del cronograma?', 'Borrar')) { P.meses[u.mi].acciones.splice(u.pos, 1); guardar(); repinta(); } },
     foco: mi => {
@@ -4153,10 +4165,11 @@ function filasAtendidos(d) {
   return DB.casos.filter(c => ids.has(c.id)).sort((a, b) => (a.fechaApertura || '').localeCompare(b.fechaApertura || '')).map(c => {
     const e = porId('estudiantes', c.estudianteId) || {};
     return [e.nombre || '', e.grado || '', fCorta(c.fechaApertura), c.modalidad !== 'ruta' || c.fechaActivacion ? 'Sí' : 'No',
-      c.modalidad === 'ruta' ? 'Sí' + (rutaDe(c) ? ' · ' + rutaDe(c).titulo : '') : 'No', String((c.seguimientos || []).length)];
+      c.modalidad === 'ruta' ? 'Sí' + (rutaDe(c) ? ' · ' + rutaDe(c).titulo : '') : 'No', textoRemision(e), String((c.seguimientos || []).length)];
   });
 }
-const COLS_ATENDIDOS = ['Estudiante', { t: 'Grado', w: '9%' }, { t: 'Apertura del caso', w: '13%' }, { t: 'Orientación', w: '11%' }, { t: 'Ruta activada', w: '20%' }, { t: 'Seguimientos', w: '12%' }];
+const textoRemision = e => ({ si: 'Sí', no: 'No' })[e && e.remisionSalud] || 'Sin dato';
+const COLS_ATENDIDOS = ['Estudiante', { t: 'Grado', w: '8%' }, { t: 'Apertura del caso', w: '12%' }, { t: 'Orientación', w: '11%' }, { t: 'Ruta activada', w: '19%' }, { t: 'Remisión a salud', w: '11%' }, { t: 'Seguimientos', w: '11%' }];
 function filasPIAR(d) {
   return d.piar.map(p => { const e = porId('estudiantes', p.estudianteId) || {}; return { e, p }; }).sort((a, b) => (a.e.nombre || '').localeCompare(b.e.nombre || '')).map(({ e, p }) =>
     [e.nombre || '', e.grado || '', p.condicion || '', fCorta(p.fecha), String((p.revisiones || []).filter(x => enRango(x.fecha, d.desde, d.hasta)).length), DB.casos.some(c => c.estudianteId === e.id) ? 'Sí' : 'No (solo PIAR)']);
@@ -4166,7 +4179,52 @@ const tablaPantalla = (cols, filas) => '<div class="tabla-resp"><table class="ta
 
 const textoPeriodo = (desde, hasta) => desde && hasta ? fLarga(desde) + ' a ' + fLarga(hasta) : desde ? 'desde ' + fLarga(desde) : hasta ? 'hasta ' + fLarga(hasta) : 'todo el registro';
 
-async function docInforme(d, { anexos = false, fotos = false } = {}) {
+// Anexos del informe: solo entran los que tienen contenido y se numeran en orden.
+const SALTO = '<div class="salto"></div>';
+const nEvid = r => { const n = (r.fotos || []).length; return n ? n + (n === 1 ? ' archivo' : ' archivos') : 'Sin evidencias'; };
+const porFechaIso = (a, b) => (a[0] || '').localeCompare(b[0] || '');
+async function anexosInforme(d, o) {
+  const lista = [];
+  const agrega = (titulo, html) => { if (html) lista.push({ titulo, html }); };
+  const num = t => { const i = lista.findIndex(x => x.titulo === t); return i < 0 ? '' : 'Anexo ' + (i + 1); };
+  if (o.anexos && d.bitacora.length) {
+    const partes = [];
+    for (const b of d.bitacora) partes.push(interiorDoc(await docBitacora(o.fotos ? b : Object.assign({}, b, { fotos: [] }))));
+    agrega('Bitácoras de actividades', partes.join(SALTO));
+  }
+  if (o.cartas && d.cartas.length) agrega('Cartas de articulación', d.cartas.slice().sort((a, b) => (a.fecha || '').localeCompare(b.fecha || '')).map(k => interiorDoc(docCarta(k))).join(SALTO));
+  if (o.piar && d.piar.length) {
+    const nom = p => (porId('estudiantes', p.estudianteId) || {}).nombre || '';
+    agrega('PIAR de los estudiantes', d.piar.slice().sort((a, b) => nom(a).localeCompare(nom(b))).map(p => interiorDoc(docPIAR(p))).join(SALTO));
+  }
+  if (!o.evidencias) return lista;
+  if (d.agenda.length) {
+    const tareas = d.agenda.slice().sort((a, b) => (a.fecha + (a.hora || '')).localeCompare(b.fecha + (b.hora || '')));
+    let h = tabla([{ t: 'Fecha', w: '12%' }, { t: 'Hora', w: '8%' }, 'Actividad', { t: 'Área de gestión', w: '22%' }, { t: 'Estado', w: '11%' }, { t: 'Evidencias', w: '12%' }],
+      tareas.map(t => [fCorta(t.fecha), t.hora || '', t.titulo, areasDe(t).join('\n'), t.hecho ? 'Realizada' : 'Pendiente', nEvid(t)]));
+    if (o.fotos) for (const t of tareas) if ((t.fotos || []).length) h += fotosHTML((await fotosDe(t.fotos)).filter(f => f.categoria !== 'doc'), fCorta(t.fecha) + ' · ' + t.titulo) + docsHTML(t.fotos, 'Documentos · ' + t.titulo);
+    agrega('Evidencias de actividades en agenda', h);
+  }
+  const anB = num('Bitácoras de actividades'), anA = num('Evidencias de actividades en agenda'), anC = num('Cartas de articulación'), anP = num('PIAR de los estudiantes');
+  const ref = (an, r) => [an, nEvid(r)].filter(Boolean).join(' · ');
+  agrega('Evidencias por área de gestión', AREAS_GESTION.map((a, i) => {
+    const filas = d.bitacora.filter(b => areasDe(b).includes(a)).map(b => [b.fecha, 'Bitácora', b.titulo, ref(anB, b)])
+      .concat(d.agenda.filter(t => areasDe(t).includes(a)).map(t => [t.fecha, 'Agenda', t.titulo + (t.hecho ? '' : ' (pendiente)'), ref(anA, t)]));
+    if (i === 3) d.cartas.forEach(k => filas.push([k.fecha, 'Carta de articulación', [k.destEntidad, k.tipo].filter(Boolean).join(' · '), anC]));
+    if (i === 4) d.actas.filter(x => x.tipo === 'padres').forEach(x => filas.push([x.fecha, 'Acta', x.objetivo || etiquetaActa(x.tipo), x.numero ? 'Acta N.º ' + x.numero : '']));
+    if (i === 6) d.piar.forEach(p => filas.push([p.fecha, 'PIAR', (porId('estudiantes', p.estudianteId) || {}).nombre || '', anP]));
+    return filas.length ? '<h3>' + esc((i + 1) + '. ' + a) + '</h3>' + tabla([{ t: 'Fecha', w: '12%' }, { t: 'Registro', w: '16%' }, 'Descripción', { t: 'Evidencia', w: '24%' }], filas.sort(porFechaIso).map(f => [fCorta(f[0])].concat(f.slice(1)))) : '';
+  }).join(''));
+  agrega('Evidencias de cumplimiento del cronograma', Object.keys(PLANES).map(k => {
+    const filas = [], ac = plan(k).meses.flatMap(m => m.acciones), n = ac.filter(a => a.hecho).length;
+    mesesEnOrden(plan(k)).forEach(({ m }) => m.acciones.forEach(a => { const reg = registrosDeAccion(a.id); if (a.hecho || reg.length) filas.push([m.permanente ? 'Permanente' : m.mes, a.t, a.hecho ? 'Cumplida' : 'Pendiente', reg.length ? reg.join('\n') : 'Marcada como cumplida sin registro asociado']); }));
+    return '<h3>' + esc(PLANES[k]) + '</h3><p>' + n + ' de ' + ac.length + ' actividades cumplidas.</p>' +
+      (filas.length ? tabla([{ t: 'Mes', w: '13%' }, 'Actividad', { t: 'Estado', w: '11%' }, { t: 'Evidencias', w: '32%' }], filas) : '<p>Sin actividades cumplidas ni con registros asociados.</p>');
+  }).join(''));
+  return lista;
+}
+
+async function docInforme(d, { anexos = false, fotos = false, cartas = false, piar = false, evidencias = false } = {}) {
   const cuenta = (o) => tabla(['Categoría', { t: 'Cantidad', w: '18%' }], ordenarConteo(o).map(([k, n]) => [k, String(n)]));
   const rutas = d.casos.filter(c => c.modalidad === 'ruta');
   let h = '<p><b>Periodo:</b> ' + esc(textoPeriodo(d.desde, d.hasta)) + '. <b>Responsable:</b> ' + v(DB.ajustes.orientadora) + '</p>' +
@@ -4193,19 +4251,18 @@ async function docInforme(d, { anexos = false, fotos = false } = {}) {
   if (d.piar.length) h += h2('9. Inclusión: PIAR') + '<p>Relación de estudiantes con PIAR:</p>' + tabla(COLS_PIAR, filasPIAR(d));
   h += h2('10. Cumplimiento de los cronogramas') + Object.keys(PLANES).map(k => { const ac = plan(k).meses.flatMap(m => m.acciones), n = ac.filter(a => a.hecho).length;
     return '<p>' + esc(PLANES[k]) + ': ' + n + ' de ' + ac.length + ' actividades cumplidas (' + (ac.length ? Math.round(n / ac.length * 100) : 0) + ' %).</p>'; }).join('') +
-    h2('Logros, dificultades y recomendaciones') + caja('', 6) + firmas([firmaOrientacion(), firmaRector()]);
-  if (anexos && d.bitacora.length) {
-    const partes = [];
-    for (const b of d.bitacora) partes.push(interiorDoc(await docBitacora(fotos ? b : Object.assign({}, b, { fotos: [] }))));
-    h += '<div class="salto"></div>' + h2('Anexo: bitácoras de actividades') + partes.join('<div class="salto"></div>');
-  }
+    h2('Logros, dificultades y recomendaciones') + caja('', 6);
+  const ax = await anexosInforme(d, { anexos, fotos, cartas, piar, evidencias });
+  if (ax.length) h += h2('Anexos') + '<ol>' + ax.map((x, i) => '<li>Anexo ' + (i + 1) + '. ' + esc(x.titulo) + '</li>').join('') + '</ol>';
+  h += firmas([firmaOrientacion(), firmaRector()]);
+  ax.forEach((x, i) => { h += SALTO + h2('Anexo ' + (i + 1) + '. ' + x.titulo) + x.html; });
   return docBase('Informe de gestión de orientación escolar', h, { sub: textoPeriodo(d.desde, d.hasta), confidencial: false });
 }
 
 function csvCasos(d) {
-  return aCSV([['Estudiante', 'Documento', 'Grado', 'Modalidad', 'Tipo de situación', 'Fecha apertura', 'Estado', 'Remitido por', 'Motivo', 'Seguimientos', 'Entidades', 'Instrumentos']].concat(d.casos.map(c => {
+  return aCSV([['Estudiante', 'Documento', 'Grado', 'Modalidad', 'Tipo de situación', 'Fecha apertura', 'Estado', 'Remitido por', 'Motivo', 'Remisión a salud', 'Seguimientos', 'Entidades', 'Instrumentos']].concat(d.casos.map(c => {
     const e = porId('estudiantes', c.estudianteId) || {};
-    return [e.nombre, e.documento, e.grado, c.modalidad === 'ruta' ? 'Activación de ruta' : 'Orientación escolar', rutaDe(c) ? rutaDe(c).titulo : '', c.fechaApertura, etiquetaEstado(c.estado), c.remitidoPor, c.motivo,
+    return [e.nombre, e.documento, e.grado, c.modalidad === 'ruta' ? 'Activación de ruta' : 'Orientación escolar', rutaDe(c) ? rutaDe(c).titulo : '', c.fechaApertura, etiquetaEstado(c.estado), c.remitidoPor, c.motivo, textoRemision(e),
       (c.seguimientos || []).length, (c.entidades || []).map(x => entidadInfo(x).nombre).join(' / '), (c.instrumentos || []).map(i => i.nombre).join(' / ')];
   })));
 }
@@ -4245,9 +4302,12 @@ VISTAS.informe = (args, el) => {
     },
     doc: () => abrirModal({ titulo: 'Generar informe', cuerpo: '<p>Periodo: <b>' + esc(textoPeriodo(f.desde, f.hasta)) + '</b></p>' + formHTML([
       { k: 'anexos', label: 'Anexar la bitácora completa de cada actividad', tipo: 'check', full: true, def: true },
+      { k: 'cartas', label: 'Anexar las cartas de articulación', tipo: 'check', full: true, def: true },
+      { k: 'piar', label: 'Anexar el PIAR de cada estudiante', tipo: 'check', full: true, def: true },
+      { k: 'evidencias', label: 'Anexar evidencias de la agenda, de cada área de gestión y del cumplimiento del cronograma', tipo: 'check', full: true, def: true },
       { k: 'fotos', label: 'Incluir registro fotográfico y listas de asistencia en los anexos', tipo: 'check', full: true, def: true }]) +
       '<p class="nota">Con muchas fotos el documento tarda unos segundos en prepararse.</p>', acciones: [{ txt: 'Cancelar', cls: 'sec' },
-      { txt: 'Generar', icono: 'imprimir', fn: root => { const o = { anexos: $('[name=anexos]', root).checked, fotos: $('[name=fotos]', root).checked }; setTimeout(() => abrirDocumento('Informe de gestión', docInforme(datosInforme(f.desde, f.hasta), o), 'informe-gestion-orientacion-' + (f.desde || 'inicio') + '-' + (f.hasta || 'hoy')), 50); } }] }),
+      { txt: 'Generar', icono: 'imprimir', fn: root => { const o = {}; ['anexos', 'cartas', 'piar', 'evidencias', 'fotos'].forEach(k => { o[k] = $('[name=' + k + ']', root).checked; }); setTimeout(() => abrirDocumento('Informe de gestión', docInforme(datosInforme(f.desde, f.hasta), o), 'informe-gestion-orientacion-' + (f.desde || 'inicio') + '-' + (f.hasta || 'hoy')), 50); } }] }),
     csv: () => {
       const d = datosInforme(f.desde, f.hasta), sufijo = '-' + (f.desde || 'inicio') + '-' + (f.hasta || 'hoy') + '.csv';
       menuCSV([['Casos y rutas', () => csvCasos(d), 'casos' + sufijo], ['Actividades (bitácora)', () => csvActividades(d), 'actividades' + sufijo], ['Agenda de tareas', () => csvAgenda(d), 'agenda' + sufijo]]);
