@@ -2697,20 +2697,24 @@ function docConsentimiento(c) {
 // ── Actas
 const TIPOS_ACTA = [['padres', 'Reunión con padres o acudientes'], ['articulacion', 'Articulación con entidad'], ['comite', 'Comité Escolar de Convivencia'], ['docentes', 'Reunión con docentes'], ['otra', 'Otra reunión']];
 const etiquetaActa = t => (TIPOS_ACTA.find(x => x[0] === t) || TIPOS_ACTA[4])[1];
+// Casos de un acta: lista nueva (casosIds) o el campo antiguo de un solo caso (casoId).
+const casosDeActa = a => (a && Array.isArray(a.casosIds) && a.casosIds.length ? a.casosIds : a && a.casoId ? [a.casoId] : []).filter(id => porId('casos', id));
+// Estudiantes de los casos de un acta, sin repetir.
+const estudiantesDeActa = a => casosDeActa(a).map(id => porId('estudiantes', porId('casos', id).estudianteId)).filter((e, i, l) => e && l.indexOf(e) === i);
 
 function docActa(a) {
   a = a || {};
-  const c = a.casoId && porId('casos', a.casoId); const e = c && porId('estudiantes', c.estudianteId);
+  const cs = casosDeActa(a), es = estudiantesDeActa(a);
   const asist = lineas(a.asistentes).map(l => { const [n, r] = l.split(/\s+[-–|]\s+/); return [n, r || '', '']; });
   const comp = lineas(a.compromisos).map(l => { const [x, r, f] = l.split('|').map(s => s && s.trim()); return [x, r || '', f || '']; });
-  const h = tablaKV([['Tipo de reunión', a.tipo ? etiquetaActa(a.tipo) : ''], ['Fecha', fCorta(a.fecha)], ['Hora', a.hora], ['Lugar', a.lugar]].concat(a.entidad || !a.tipo ? [['Entidad', a.entidad]] : []).concat(e ? [['Estudiante', e.nombre + (e.grado ? ' · ' + e.grado : '')]] : []), 4) +
+  const h = tablaKV([['Tipo de reunión', a.tipo ? etiquetaActa(a.tipo) : ''], ['Fecha', fCorta(a.fecha)], ['Hora', a.hora], ['Lugar', a.lugar]].concat(a.entidad || !a.tipo ? [['Entidad', a.entidad]] : []).concat(es.length ? [[es.length > 1 ? 'Estudiantes' : 'Estudiante', es.map(e => e.nombre + (e.grado ? ' · ' + e.grado : '')).join(', ')]] : []), 4) +
     h2('Objetivo') + caja(a.objetivo, 2) +
     h2('Asistentes') + tabla(['Nombre', { t: 'Rol o entidad', w: '30%' }, { t: 'Firma', w: '28%' }], asist, Math.max(asist.length, a.fecha ? 0 : 8)) +
     h2('Desarrollo') + caja(a.desarrollo, 8) +
     h2('Compromisos') + tabla(['Compromiso', { t: 'Responsable', w: '25%' }, { t: 'Fecha', w: '15%' }], comp, a.fecha ? 0 : 5) +
     h2('Próxima reunión') + caja(a.proxima, 1) +
     firmas([firmaOrientacion(), a.tipo === 'comite' ? firmaRector() : ['Acudiente o representante', '']]);
-  return docBase(a.tipo === 'comite' ? 'Acta del Comité Escolar de Convivencia' : 'Acta de reunión', h, { sub: a.numero ? 'Acta N.° ' + esc(a.numero) : '', confidencial: !!c || a.tipo !== 'docentes' });
+  return docBase(a.tipo === 'comite' ? 'Acta del Comité Escolar de Convivencia' : 'Acta de reunión', h, { sub: a.numero ? 'Acta N.° ' + esc(a.numero) : '', confidencial: cs.length > 0 || a.tipo !== 'docentes' });
 }
 
 // ── Cartas de solicitud de articulación
@@ -3005,7 +3009,7 @@ VISTAS.estudiante = ([id], el) => {
   if (!e) return noEncontrado(el);
   const cs = casosDe(id).sort((a, b) => (b.fechaApertura || '').localeCompare(a.fechaApertura || ''));
   const piars = DB.piar.filter(p => p.estudianteId === id);
-  const actas = DB.actas.filter(a => cs.some(c => c.id === a.casoId));
+  const actas = DB.actas.filter(a => cs.some(c => casosDeActa(a).includes(c.id)));
   el.innerHTML = cabecera(e.nombre, { volver: '#/estudiantes', sub: [e.grado ? 'Grado ' + e.grado : '', e.jornada, e.fechaNac ? edad(e.fechaNac) + ' años' : ''].filter(Boolean).map(esc).join(' · '),
     acciones: boton('editar', 'Editar', 'editar', 'sec') + '<a class="btn" href="#/nuevo-caso/orientacion/' + id + '">' + ic('brujula') + '<span>Orientación</span></a><a class="btn alerta" href="#/nuevo-caso/ruta/' + id + '">' + ic('activar') + '<span>Activar ruta</span></a>' }) +
     '<div class="rejilla-2"><div class="col">' +
@@ -3135,7 +3139,10 @@ function formCaso(el, modalidad, caso, estId) {
 }
 
 function borrarCaso(id) {
-  DB.actas.forEach(a => { if (a.casoId === id) a.casoId = ''; });
+  DB.actas.forEach(a => {
+    if (Array.isArray(a.casosIds)) a.casosIds = a.casosIds.filter(x => x !== id);
+    if (a.casoId === id) a.casoId = (a.casosIds || [])[0] || '';
+  });
   DB.cartas.forEach(a => { if (a.casoId === id) a.casoId = ''; });
   quitar('casos', id);
 }
@@ -3286,7 +3293,7 @@ function docExpediente(c) {
   const partes = [docFicha(c)];
   if (c.modalidad === 'ruta') partes.push(docRegistroRuta(c));
   (c.entidades || []).forEach(x => partes.push(docMisiva(c, x)));
-  DB.actas.filter(a => a.casoId === c.id).sort((a, b) => (a.fecha || '').localeCompare(b.fecha || '')).forEach(a => partes.push(docActa(a)));
+  DB.actas.filter(a => casosDeActa(a).includes(c.id)).sort((a, b) => (a.fecha || '').localeCompare(b.fecha || '')).forEach(a => partes.push(docActa(a)));
   DB.cartas.filter(a => a.casoId === c.id).forEach(a => partes.push(docCarta(a)));
   const ins = (c.instrumentos || []).filter(r => r.instId);
   ins.forEach(r => { const inst = INSTRUMENTOS.find(i => i.id === r.instId); if (inst) partes.push(docInstrumento(inst, r, e)); });
@@ -3316,7 +3323,7 @@ VISTAS.caso = ([id, accion], el) => {
     const e = porId('estudiantes', c.estudianteId) || {};
     const ruta = rutaDe(c);
     const seg = (c.seguimientos || []).slice().sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));
-    const actas = DB.actas.filter(a => a.casoId === c.id);
+    const actas = DB.actas.filter(a => casosDeActa(a).includes(c.id));
     const cartas = DB.cartas.filter(a => a.casoId === c.id);
     const prot = c.protocolo || [];
 
@@ -3386,7 +3393,7 @@ VISTAS.caso = ([id, accion], el) => {
     doc: i => { const x = documentosCaso(c)[i]; abrirDocumento(x[0], x[1](), x[2]); },
     verActa: aid => abrirDocumento('Acta', docActa(porId('actas', aid)), 'acta'),
     verCarta: aid => abrirDocumento('Carta', docCarta(porId('cartas', aid)), 'carta'),
-    nuevaActa: () => editarActa({ casoId: c.id, tipo: 'padres' }, pinta),
+    nuevaActa: () => editarActa({ casosIds: [c.id], tipo: 'padres' }, pinta),
     nuevaCarta: () => editarCarta({ casoId: c.id }, pinta),
     cerrarCaso: () => {
       const campos = [{ k: 'fechaCierre', label: 'Fecha de cierre', tipo: 'date', def: hoyISO() }, { k: 'cierre', label: 'Motivo y estado al cierre', tipo: 'textarea', filas: 4, req: true, hint: 'Logros, situación actual, remisiones vigentes y recomendaciones.' }];
@@ -3443,7 +3450,8 @@ const camposActa = datos => [
   { k: 'hora', label: 'Hora', tipo: 'time' },
   { k: 'lugar', label: 'Lugar' },
   { k: 'entidad', label: 'Entidad participante', hint: 'Para articulaciones con ICBF, Comisaría, EPS u otras.' },
-  { k: 'casoId', label: 'Caso relacionado', tipo: 'caso', full: true },
+  { k: 'casosIds', label: 'Casos relacionados', tipo: 'checks', ops: DB.casos.map(x => [x.id, nombreCaso(x)]),
+    hint: DB.casos.length ? 'Puedes marcar uno o varios casos, o ninguno.' : 'Aún no hay casos registrados.' },
   { k: 'objetivo', label: 'Objetivo de la reunión', tipo: 'textarea', filas: 2, req: true },
   { k: 'asistentes', label: 'Asistentes', tipo: 'textarea', filas: 4, ph: 'María Pérez - Madre\nJuan Gómez - Director de grupo', hint: 'Una persona por línea: nombre - rol o entidad.' },
   { k: 'desarrollo', label: 'Desarrollo de la reunión', tipo: 'textarea', filas: 6 },
@@ -3453,17 +3461,18 @@ const camposActa = datos => [
 
 function editarActa(datos, alGuardar) {
   const campos = camposActa(datos);
-  abrirModal({ titulo: datos && datos.id ? 'Editar acta' : 'Nueva acta', cuerpo: formHTML(campos, datos || {}), ancho: 'ancho', acciones: [
+  const guardarActa = root => { const n = leerForm(root, campos, datos && datos.id ? datos : {}); n.casoId = n.casosIds[0] || ''; return upsert('actas', n); };
+  abrirModal({ titulo: datos && datos.id ? 'Editar acta' : 'Nueva acta', cuerpo: formHTML(campos, Object.assign({}, datos || {}, { casosIds: casosDeActa(datos) })), ancho: 'ancho', acciones: [
     { txt: 'Cancelar', cls: 'sec' },
     { txt: 'Guardar', icono: 'check', fn: root => {
       if (!validar(root, campos)) return false;
-      const a = upsert('actas', leerForm(root, campos, datos && datos.id ? datos : {}));
+      const a = guardarActa(root);
       aviso('Acta guardada.');
       if (alGuardar) alGuardar(a);
     } },
     { txt: 'Guardar e imprimir', icono: 'imprimir', fn: root => {
       if (!validar(root, campos)) return false;
-      const a = upsert('actas', leerForm(root, campos, datos && datos.id ? datos : {}));
+      const a = guardarActa(root);
       if (alGuardar) alGuardar(a);
       abrirDocumento(etiquetaActa(a.tipo), docActa(a), 'acta-' + a.numero + '-' + a.fecha);
     } }
@@ -3475,9 +3484,9 @@ VISTAS.actas = (args, el) => {
   const pinta = () => {
     const lista = DB.actas.filter(a => !filtro || a.tipo === filtro).sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));
     $('.lista', el).innerHTML = lista.length ? '<ul class="lista-reg">' + lista.map(a => {
-      const e = estudianteDeCaso(a.casoId);
+      const nombres = estudiantesDeActa(a).map(e => e.nombre).join(', ');
       return filaRegistro({ icono: 'actas', titulo: esc(etiquetaActa(a.tipo)) + (a.numero ? ' · N.° ' + esc(a.numero) : ''),
-        sub: fCorta(a.fecha) + [e && e.nombre, a.entidad, (a.objetivo || '').slice(0, 80)].filter(Boolean).map(x => ' · ' + esc(x)).join(''), acciones: accionesRegistro(a.id) });
+        sub: fCorta(a.fecha) + [nombres, a.entidad, (a.objetivo || '').slice(0, 80)].filter(Boolean).map(x => ' · ' + esc(x)).join(''), acciones: accionesRegistro(a.id) });
     }).join('') + '</ul>' : vacioHTML(DB.actas.length ? 'No hay actas de este tipo.' : 'Registra aquí las reuniones con familias, docentes, entidades y el Comité de Convivencia.');
   };
   el.innerHTML = cabecera('Actas de reunión', { sub: 'Familias, articulación con entidades, comité y docentes',
@@ -3706,7 +3715,7 @@ function registrosDelDia(iso) {
     (c.entidades || []).filter(x => x.fechaEnvio === iso).forEach(x => r.push({ icono: 'cartas', tipo: 'Entidad convocada', titulo: 'Entidad convocada: ' + (entidadInfo(x).nombre), sub: nom(c.estudianteId), href: '#/caso/' + c.id }));
   });
   DB.bitacora.filter(b => b.fecha === iso).forEach(b => r.push({ icono: 'bitacora', tipo: 'Actividad', titulo: 'Actividad: ' + (b.titulo), sub: ([b.tipo, b.poblacion, b.numAsistentes && b.numAsistentes + ' participantes'].filter(Boolean).join(' · ')), href: '#/bitacora/' + b.id }));
-  DB.actas.filter(a => a.fecha === iso).forEach(a => { const e = estudianteDeCaso(a.casoId); r.push({ icono: 'actas', tipo: 'Acta', titulo: 'Acta: ' + (etiquetaActa(a.tipo)) + (a.numero ? ' N.° ' + (a.numero) : ''), sub: ([e && e.nombre, a.entidad, a.objetivo].filter(Boolean).join(' · ')), href: '#/actas' }); });
+  DB.actas.filter(a => a.fecha === iso).forEach(a => { r.push({ icono: 'actas', tipo: 'Acta', titulo: 'Acta: ' + (etiquetaActa(a.tipo)) + (a.numero ? ' N.° ' + (a.numero) : ''), sub: ([estudiantesDeActa(a).map(e => e.nombre).join(', '), a.entidad, a.objetivo].filter(Boolean).join(' · ')), href: '#/actas' }); });
   DB.cartas.filter(k => k.fecha === iso).forEach(k => r.push({ icono: 'cartas', tipo: 'Carta', titulo: 'Carta de articulación: ' + (k.destEntidad || ''), sub: ([k.tipo, k.necesidad].filter(Boolean).join(' · ')), href: '#/cartas' }));
   DB.piar.forEach(p => {
     if (p.fecha === iso) r.push({ icono: 'piar', tipo: 'PIAR', titulo: 'PIAR elaborado: ' + nom(p.estudianteId), sub: (p.condicion || ''), href: '#/piar/' + p.id });
