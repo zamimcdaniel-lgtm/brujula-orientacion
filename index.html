@@ -4192,19 +4192,42 @@ const textoPeriodo = (desde, hasta) => desde && hasta ? fLarga(desde) + ' a ' + 
 const SALTO = '<div class="salto"></div>';
 const nEvid = r => { const n = (r.fotos || []).length; return n ? n + (n === 1 ? ' archivo' : ' archivos') : 'Sin evidencias'; };
 const porFechaIso = (a, b) => (a[0] || '').localeCompare(b[0] || '');
+// Agrupa registros por una clave, en el orden de «orden» y luego las claves que no estén en él.
+function agrupar(lista, clave, orden) {
+  const m = new Map(); orden.forEach(k => m.set(k, []));
+  lista.forEach(x => { const k = clave(x); if (!m.has(k)) m.set(k, []); m.get(k).push(x); });
+  return [...m].filter(([, v]) => v.length);
+}
+// Resumen del PIAR para anexos: datos del estudiante y revisiones del periodo, sin el plan completo.
+function resumenPIAR(p, d) {
+  const e = porId('estudiantes', p.estudianteId);
+  const rev = (p.revisiones || []).filter(x => enRango(x.fecha, d.desde, d.hasta)).sort((a, b) => (a.fecha || '').localeCompare(b.fecha || ''));
+  return '<h3>' + esc(e ? e.nombre : 'Estudiante') + '</h3>' + bloqueEstudiante(e) +
+    tablaKV([['Año', p.anio], ['Docente de apoyo pedagógico', p.docenteApoyo], ['Condición o diagnóstico reportado', p.condicion], ['Fecha de elaboración', fCorta(p.fecha)]], 4) +
+    '<p><b>Seguimientos y revisiones realizadas en el periodo</b></p>' +
+    (rev.length ? tabla([{ t: 'Fecha', w: '13%' }, { t: 'Periodo', w: '12%' }, 'Avances', 'Acciones a seguir'], rev.map(r => [fCorta(r.fecha), r.periodo, r.avances, r.acciones]))
+      : '<p class="nota">Sin revisiones registradas en el periodo.</p>');
+}
+
 async function anexosInforme(d, o) {
   const lista = [];
   const agrega = (titulo, html) => { if (html) lista.push({ titulo, html }); };
   const num = t => { const i = lista.findIndex(x => x.titulo === t); return i < 0 ? '' : 'Anexo ' + (i + 1); };
   if (o.anexos && d.bitacora.length) {
-    const partes = [];
-    for (const b of d.bitacora) partes.push(interiorDoc(await docBitacora(o.fotos ? b : Object.assign({}, b, { fotos: [] }))));
+    // Cada bitácora va en su primera área de gestión.
+    const grupos = agrupar(d.bitacora, b => areasDe(b)[0] || 'Sin área de gestión', AREAS_GESTION), partes = [];
+    for (const [area, lista] of grupos) {
+      const docs = [];
+      for (const b of lista) docs.push(interiorDoc(await docBitacora(o.fotos ? b : Object.assign({}, b, { fotos: [] }))));
+      const n = AREAS_GESTION.indexOf(area);
+      partes.push('<h3>' + esc((n >= 0 ? (n + 1) + '. ' : '') + area + ' (' + lista.length + (lista.length === 1 ? ' bitácora' : ' bitácoras') + ')') + '</h3>' + docs.join(SALTO));
+    }
     agrega('Bitácoras de actividades', partes.join(SALTO));
   }
   if (o.cartas && d.cartas.length) agrega('Cartas de articulación', d.cartas.slice().sort((a, b) => (a.fecha || '').localeCompare(b.fecha || '')).map(k => interiorDoc(docCarta(k))).join(SALTO));
   if (o.piar && d.piar.length) {
     const nom = p => (porId('estudiantes', p.estudianteId) || {}).nombre || '';
-    agrega('PIAR de los estudiantes', d.piar.slice().sort((a, b) => nom(a).localeCompare(nom(b))).map(p => interiorDoc(docPIAR(p))).join(SALTO));
+    agrega('Seguimiento de los PIAR', d.piar.slice().sort((a, b) => nom(a).localeCompare(nom(b))).map(p => resumenPIAR(p, d)).join(SALTO));
   }
   if (!o.evidencias) return lista;
   if (d.agenda.length) {
@@ -4214,7 +4237,7 @@ async function anexosInforme(d, o) {
     if (o.fotos) for (const t of tareas) if ((t.fotos || []).length) h += fotosHTML((await fotosDe(t.fotos)).filter(f => f.categoria !== 'doc'), fCorta(t.fecha) + ' · ' + t.titulo) + docsHTML(t.fotos, 'Documentos · ' + t.titulo);
     agrega('Evidencias de actividades en agenda', h);
   }
-  const anB = num('Bitácoras de actividades'), anA = num('Evidencias de actividades en agenda'), anC = num('Cartas de articulación'), anP = num('PIAR de los estudiantes');
+  const anB = num('Bitácoras de actividades'), anA = num('Evidencias de actividades en agenda'), anC = num('Cartas de articulación'), anP = num('Seguimiento de los PIAR');
   const ref = (an, r) => [an, nEvid(r)].filter(Boolean).join(' · ');
   agrega('Evidencias por área de gestión', AREAS_GESTION.map((a, i) => {
     const filas = d.bitacora.filter(b => areasDe(b).includes(a)).map(b => [b.fecha, 'Bitácora', b.titulo, ref(anB, b)])
@@ -4253,9 +4276,13 @@ async function docInforme(d, { anexos = false, fotos = false, cartas = false, pi
   if (d.entidades.length) h += h2('4. Articulación con entidades') + tabla(['Entidad', { t: 'Convocatorias', w: '16%' }, { t: 'Respondidas', w: '16%' }],
     ordenarConteo(contar(d.entidades, x => entidadInfo(x).nombre)).map(([k, n]) => [k, String(n), String(d.entidades.filter(x => entidadInfo(x).nombre === k && x.estado === 'respondida').length)]));
   if (d.instrumentos.length) h += h2('5. Tamizajes aplicados') + cuenta(contar(d.instrumentos, 'nombre'));
-  if (d.bitacora.length) h += h2('6. Actividades de promoción y prevención') + tabla([{ t: 'Fecha', w: '13%' }, 'Actividad', { t: 'Tipo', w: '20%' }, { t: 'Población', w: '18%' }, { t: 'Part.', w: '8%' }],
-    d.bitacora.map(b => [fCorta(b.fecha), b.titulo, b.tipo, b.poblacion, b.numAsistentes || '']));
-  if (d.actas.length) h += h2('7. Actas de reunión') + tabla([{ t: 'Fecha', w: '13%' }, { t: 'N.º', w: '9%' }, 'Tipo', 'Objetivo'], d.actas.sort((a, b) => (a.fecha || '').localeCompare(b.fecha || '')).map(a => [fCorta(a.fecha), a.numero, etiquetaActa(a.tipo), a.objetivo]));
+  if (d.bitacora.length) h += h2('6. Actividades de promoción y prevención') + agrupar(d.bitacora, b => b.tipo || 'Sin tipo', TIPOS_ACTIVIDAD).map(([tipo, lista]) => {
+    const part = lista.reduce((s, b) => s + (Number(b.numAsistentes) || 0), 0);
+    return '<h3>' + esc(tipo + ' (' + lista.length + (lista.length === 1 ? ' actividad' : ' actividades') + (part ? ' · ' + part + ' participantes' : '') + ')') + '</h3>' +
+      tabla([{ t: 'Fecha', w: '13%' }, 'Actividad', { t: 'Población', w: '22%' }, { t: 'Part.', w: '8%' }], lista.map(b => [fCorta(b.fecha), b.titulo, b.poblacion, b.numAsistentes || '']));
+  }).join('');
+  if (d.actas.length) h += h2('7. Actas de reunión') + agrupar(d.actas.slice().sort((a, b) => (a.fecha || '').localeCompare(b.fecha || '')), a => etiquetaActa(a.tipo), TIPOS_ACTA.map(t => t[1])).map(([tipo, lista]) =>
+    '<h3>' + esc(tipo + ' (' + lista.length + ')') + '</h3>' + tabla([{ t: 'Fecha', w: '13%' }, { t: 'N.º', w: '9%' }, 'Objetivo', { t: 'Estudiantes', w: '26%' }], lista.map(a => [fCorta(a.fecha), a.numero, a.objetivo, estudiantesDeActa(a).map(e => e.nombre).join(', ')]))).join('');
   if (d.cartas.length) h += h2('8. Cartas de solicitud') + tabla([{ t: 'Fecha', w: '13%' }, 'Dirigida a', 'Solicitud'], d.cartas.map(k => [fCorta(k.fecha), k.destEntidad, k.tipo]));
   if (d.piar.length) h += h2('9. Inclusión: PIAR') + '<p>Relación de estudiantes con PIAR:</p>' + tabla(COLS_PIAR, filasPIAR(d));
   h += h2('10. Cumplimiento de los cronogramas') + Object.keys(PLANES).map(k => { const ac = plan(k).meses.flatMap(m => m.acciones), n = ac.filter(a => a.hecho).length;
@@ -4312,7 +4339,7 @@ VISTAS.informe = (args, el) => {
     doc: () => abrirModal({ titulo: 'Generar informe', cuerpo: '<p>Periodo: <b>' + esc(textoPeriodo(f.desde, f.hasta)) + '</b></p>' + formHTML([
       { k: 'anexos', label: 'Anexar la bitácora completa de cada actividad', tipo: 'check', full: true, def: true },
       { k: 'cartas', label: 'Anexar las cartas de articulación', tipo: 'check', full: true, def: true },
-      { k: 'piar', label: 'Anexar el PIAR de cada estudiante', tipo: 'check', full: true, def: true },
+      { k: 'piar', label: 'Anexar el seguimiento del PIAR de cada estudiante (datos y revisiones)', tipo: 'check', full: true, def: true },
       { k: 'evidencias', label: 'Anexar evidencias de la agenda, de cada área de gestión y del cumplimiento del cronograma', tipo: 'check', full: true, def: true },
       { k: 'fotos', label: 'Incluir registro fotográfico y listas de asistencia en los anexos', tipo: 'check', full: true, def: true }]) +
       '<p class="nota">Con muchas fotos el documento tarda unos segundos en prepararse.</p>', acciones: [{ txt: 'Cancelar', cls: 'sec' },
